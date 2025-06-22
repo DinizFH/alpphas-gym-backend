@@ -5,3 +5,4 @@ PyMySQL
 gunicorn
 flask-cors
 flask-mail
+requests
