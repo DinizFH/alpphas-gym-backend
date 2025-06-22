@@ -9,3 +9,4 @@ requests
 reportlab
 pytz
 bcrypt
+dotenv
