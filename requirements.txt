@@ -4,3 +4,4 @@ flask-login
 PyMySQL
 gunicorn
 flask-cors
+flask-mail
