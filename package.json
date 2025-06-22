@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "react-select": "^5.10.1"
+  }
+}
