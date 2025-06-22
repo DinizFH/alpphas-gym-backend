@@ -3,3 +3,4 @@ flask-jwt-extended
 flask-login
 PyMySQL
 gunicorn
+flask-cors
