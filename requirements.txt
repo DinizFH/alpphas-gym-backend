@@ -10,3 +10,4 @@ reportlab
 pytz
 bcrypt
 dotenv
+cryptography
