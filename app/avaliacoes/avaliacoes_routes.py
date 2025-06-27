@@ -26,8 +26,6 @@ def calcular_massa_gorda(peso, percentual_gordura):
 def calcular_massa_magra(peso, massa_gorda):
     return round(peso - massa_gorda, 2)
 
-# Resto do código idêntico até a rota criar_avaliacao
-
 # ================================
 # Criar avaliação (ATUALIZADA)
 # ================================
@@ -60,16 +58,16 @@ def criar_avaliacao():
         "cintura": data.get("cintura"),
         "abdomen": data.get("abdomen"),
         "quadril": data.get("quadril"),
-        "braco_direito": data.get("braco_d"),
-        "braco_esquerdo": data.get("braco_e"),
+        "braco_direito": data.get("braco_direito"),
+        "braco_esquerdo": data.get("braco_esquerdo"),
         "braco_d_contraido": data.get("braco_d_contraido"),
         "braco_e_contraido": data.get("braco_e_contraido"),
-        "antebraco_direito": data.get("antebraco_d"),
-        "antebraco_esquerdo": data.get("antebraco_e"),
-        "coxa_direita": data.get("coxa_d"),
-        "coxa_esquerda": data.get("coxa_e"),
-        "panturrilha_direita": data.get("panturrilha_d"),
-        "panturrilha_esquerda": data.get("panturrilha_e")
+        "antebraco_direito": data.get("antebraco_direito"),
+        "antebraco_esquerdo": data.get("antebraco_esquerdo"),
+        "coxa_direita": data.get("coxa_direita"),
+        "coxa_esquerda": data.get("coxa_esquerda"),
+        "panturrilha_direita": data.get("panturrilha_direita"),
+        "panturrilha_esquerda": data.get("panturrilha_esquerda")
     }
 
     observacoes = data.get("observacoes")
@@ -180,7 +178,7 @@ def listar_avaliacoes():
 
 
 # ================================
-# Obter avaliação por ID
+# Obter avaliação por ID (ATUALIZADA)
 # ================================
 @avaliacoes_bp.route("/<int:id>", methods=["GET"])
 @jwt_required()
@@ -189,7 +187,17 @@ def obter_avaliacao(id):
     try:
         with db.cursor() as cursor:
             cursor.execute("""
-                SELECT a.*, 
+                SELECT 
+                    a.id_avaliacao, a.id_aluno, a.id_profissional,
+                    a.peso, a.altura, a.idade, a.imc, a.percentual_gordura,
+                    a.massa_gorda, a.massa_magra,
+                    a.pescoco, a.ombro, a.torax, a.cintura, a.abdomen, a.quadril,
+                    a.braco_direito, a.braco_esquerdo, a.braco_d_contraido, a.braco_e_contraido,
+                    a.antebraco_direito, a.antebraco_esquerdo, a.coxa_direita, a.coxa_esquerda,
+                    a.panturrilha_direita, a.panturrilha_esquerda,
+                    a.dobra_peitoral, a.dobra_triceps, a.dobra_subescapular,
+                    a.dobra_biceps, a.dobra_axilar_media, a.dobra_supra_iliaca,
+                    a.observacoes,
                     u1.nome AS nome_aluno, u1.cpf AS cpf_aluno,
                     u2.nome AS nome_profissional
                 FROM avaliacoesfisicas a
@@ -206,6 +214,7 @@ def obter_avaliacao(id):
         return jsonify({"message": "Erro interno"}), 500
     finally:
         db.close()
+
 
 
 # ================================

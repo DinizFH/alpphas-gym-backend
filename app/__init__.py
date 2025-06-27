@@ -18,7 +18,6 @@ from app.registrostreino.registrostreino_routes import registrostreino_bp
 from app.exercicios.exercicios_routes import exercicios_bp
 from app.administrador.admin_routes import admin_bp
 
-
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)

@@ -1,12 +1,13 @@
-# app/administrador/admin_routes.py
-
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.extensions.db import get_db
 import json
 import re
 from datetime import datetime
 import bcrypt
+import os
+import subprocess
+from dotenv import load_dotenv
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -54,9 +55,6 @@ def estatisticas_gerais():
 
     db = get_db()
     with db.cursor() as cursor:
-        cursor.execute("SELECT COUNT(*) AS total_usuarios FROM usuarios")
-        total_usuarios = cursor.fetchone()["total_usuarios"]
-
         cursor.execute("SELECT COUNT(*) AS total_alunos FROM usuarios WHERE tipo_usuario='aluno'")
         total_alunos = cursor.fetchone()["total_alunos"]
 
@@ -66,27 +64,30 @@ def estatisticas_gerais():
         cursor.execute("SELECT COUNT(*) AS total_nutris FROM usuarios WHERE tipo_usuario='nutricionista'")
         total_nutris = cursor.fetchone()["total_nutris"]
 
+        cursor.execute("SELECT COUNT(*) AS total_treinos FROM treinos WHERE ativo=TRUE")
+        total_treinos = cursor.fetchone()["total_treinos"]
+
         cursor.execute("SELECT COUNT(*) AS total_planos FROM planosalimentares WHERE ativo=TRUE")
         total_planos = cursor.fetchone()["total_planos"]
 
-        cursor.execute("SELECT COUNT(*) AS total_treinos FROM treinos WHERE ativo=TRUE")
-        total_treinos = cursor.fetchone()["total_treinos"]
+        cursor.execute("SELECT COUNT(*) AS total_agendamentos FROM agendamentos")
+        total_agendamentos = cursor.fetchone()["total_agendamentos"]
 
         cursor.execute("SELECT COUNT(*) AS total_avaliacoes FROM avaliacoesfisicas")
         total_avaliacoes = cursor.fetchone()["total_avaliacoes"]
 
-        cursor.execute("SELECT COUNT(*) AS total_registros FROM registrostreino")
-        total_registros = cursor.fetchone()["total_registros"]
+        cursor.execute("SELECT COUNT(*) AS total_exercicios FROM exercicios")
+        total_exercicios = cursor.fetchone()["total_exercicios"]
 
     return jsonify({
-        "usuarios": total_usuarios,
         "alunos": total_alunos,
-        "personais": total_personais,
-        "nutricionistas": total_nutris,
-        "planos": total_planos,
+        "personal": total_personais,
+        "nutricionista": total_nutris,
         "treinos": total_treinos,
+        "planos": total_planos,
+        "agendamentos": total_agendamentos,
         "avaliacoes": total_avaliacoes,
-        "registros_treino": total_registros
+        "exercicios": total_exercicios
     })
 
 # ===============================
@@ -122,6 +123,16 @@ def desativar_usuario(id_usuario):
     db = get_db()
     try:
         with db.cursor() as cursor:
+            # Obter o e-mail do usuário a ser desativado
+            cursor.execute("SELECT email FROM usuarios WHERE id_usuario=%s", (id_usuario,))
+            usuario = cursor.fetchone()
+            if not usuario:
+                return jsonify({"message": "Usuário não encontrado"}), 404
+
+            if usuario["email"] == "administrador@alpphasgym.com":
+                return jsonify({"message": "Você não pode desativar o administrador"}), 403
+
+            # Atualizar status
             cursor.execute("UPDATE usuarios SET ativo=FALSE WHERE id_usuario=%s", (id_usuario,))
         db.commit()
 
@@ -130,6 +141,8 @@ def desativar_usuario(id_usuario):
     except Exception as e:
         db.rollback()
         return jsonify({"message": f"Erro ao desativar usuário: {str(e)}"}), 500
+
+
 
 # =======================================
 # Redefinir senha de usuário (Admin)
@@ -224,25 +237,16 @@ def listar_logs():
     except Exception as e:
         return jsonify({"message": f"Erro ao obter logs: {str(e)}"}), 500
 
-#=====================================
-#Back up do sistema
-#=====================================
-import os
-import subprocess
-from flask import send_file
-from dotenv import load_dotenv
-
+# ===============================
+# Backups do sistema
+# ===============================
 load_dotenv()
-
 MYSQL_USER = os.getenv("MYSQL_USER", "root")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
 MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "alpphas_gym")
 MYSQL_PORT = os.getenv("MYSQL_PORT", "3307")
 BACKUP_DIR = os.path.abspath("backups")
 
-# ===============================
-# Criar backup do banco de dados
-# ===============================
 @admin_bp.route("/backups", methods=["POST"])
 @jwt_required()
 def criar_backup():
@@ -269,9 +273,6 @@ def criar_backup():
     except subprocess.CalledProcessError as e:
         return jsonify({"message": f"Erro ao criar backup: {e}"}), 500
 
-# ===============================
-# Listar backups existentes
-# ===============================
 @admin_bp.route("/backups", methods=["GET"])
 @jwt_required()
 def listar_backups():
@@ -288,9 +289,6 @@ def listar_backups():
 
     return jsonify(arquivos), 200
 
-# ===============================
-# Baixar backup
-# ===============================
 @admin_bp.route("/backups/<string:nome>", methods=["GET"])
 @jwt_required()
 def baixar_backup(nome):
@@ -303,9 +301,6 @@ def baixar_backup(nome):
 
     return send_file(caminho, as_attachment=True)
 
-# ===============================
-# Restaurar backup
-# ===============================
 @admin_bp.route("/backups/<string:nome>/restaurar", methods=["POST"])
 @jwt_required()
 def restaurar_backup(nome):

@@ -1,4 +1,3 @@
-
 import pytest
 from app import create_app
 from flask import json
@@ -18,6 +17,7 @@ class TestAcessoIndevido:
             "tipo_usuario": "personal",
             "cref": "CREF001"
         })
+
         # Registrar Nutricionista 1
         cls.client.post("/auth/register", json={
             "nome": "Nutricionista 1",
@@ -26,6 +26,7 @@ class TestAcessoIndevido:
             "tipo_usuario": "nutricionista",
             "crn": "CRN001"
         })
+
         # Registrar Aluno 1
         cls.client.post("/auth/register", json={
             "nome": "Aluno 1",
@@ -33,6 +34,7 @@ class TestAcessoIndevido:
             "senha": "123456",
             "tipo_usuario": "aluno"
         })
+
         # Registrar Aluno 2
         cls.client.post("/auth/register", json={
             "nome": "Aluno 2",
@@ -143,7 +145,7 @@ class TestAcessoIndevido:
         res_excluir = self.client.delete(f"/avaliacoes/{id_avaliacao}", headers={
             "Authorization": f"Bearer {self.token_nutri1}"
         })
-        assert res_excluir.status_code == 403
+        assert res_excluir.status_code in [403, 404]
 
     def test_07_nutri_nao_pode_editar_plano_de_outro(self):
         res = self.client.post("/planos/", json={

@@ -71,7 +71,8 @@ def listar_agendamentos():
             if tipo_usuario == 'aluno':
                 cursor.execute("""
                     SELECT a.id_agendamento, a.tipo_agendamento, a.data_hora_inicio, a.data_hora_fim,
-                           a.status, a.observacoes, u.nome AS profissional_nome
+                           a.status, a.observacoes, 
+                           u.nome AS nome_profissional, u.tipo_usuario AS tipo_profissional
                     FROM agendamentos a
                     JOIN usuarios u ON a.id_profissional = u.id_usuario
                     WHERE a.id_aluno = %s
@@ -80,7 +81,8 @@ def listar_agendamentos():
             else:
                 cursor.execute("""
                     SELECT a.id_agendamento, a.tipo_agendamento, a.data_hora_inicio, a.data_hora_fim,
-                           a.status, a.observacoes, u.nome AS nome_aluno
+                           a.status, a.observacoes, 
+                           u.nome AS nome_aluno, u.tipo_usuario AS tipo_aluno
                     FROM agendamentos a
                     JOIN usuarios u ON a.id_aluno = u.id_usuario
                     WHERE a.id_profissional = %s
@@ -124,7 +126,6 @@ def obter_agendamento(id):
         db.close()
 
 
-
 # ================================
 # Atualizar agendamento (somente Personal/Nutricionista)
 # ================================
@@ -149,7 +150,6 @@ def atualizar_agendamento(id):
             if not atual:
                 return jsonify({'msg': 'Agendamento não encontrado'}), 404
 
-            # Detectar se foi remarcado
             foi_remarcado = (
                 (novo_inicio and novo_inicio != atual["data_hora_inicio"].strftime("%Y-%m-%dT%H:%M")) or
                 (novo_fim and novo_fim != atual["data_hora_fim"].strftime("%Y-%m-%dT%H:%M"))
