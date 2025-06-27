@@ -41,7 +41,7 @@ def verificar_token_revogado(jwt_header, jwt_payload):
 # ===========================
 # CORS global
 # ===========================
-CORS(app)
+CORS(app, origins=["http://localhost:5173"], supports_credentials=True)
 
 # ===========================
 # Executa localmente
