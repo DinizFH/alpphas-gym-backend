@@ -111,7 +111,6 @@ def criar_plano():
         return jsonify({"message": f"Erro ao criar plano: {str(e)}"}), 500
 
 
-
 # --------------------------------------------------
 # Editar plano alimentar
 # --------------------------------------------------
@@ -122,15 +121,14 @@ def editar_plano(id_plano):
     if identidade.get("tipo_usuario") != "nutricionista":
         return jsonify({"message": "Apenas nutricionistas podem editar planos"}), 403
 
-    data       = request.get_json()
-    refeicoes  = data.get("refeicoes", [])
+    data = request.get_json()
+    refeicoes = data.get("refeicoes", [])
     if not refeicoes:
         return jsonify({"message": "Refeições são obrigatórias"}), 400
 
     db = get_db()
     try:
         with db.cursor() as cursor:
-            # plano pertence a este nutri?
             cursor.execute("""
                 SELECT id_plano FROM planosalimentares
                 WHERE id_plano=%s AND id_nutricionista=%s AND ativo=TRUE
@@ -138,13 +136,11 @@ def editar_plano(id_plano):
             if not cursor.fetchone():
                 return jsonify({"message": "Plano não encontrado ou acesso negado"}), 403
 
-            # apaga refeições/alimentos antigos
             cursor.execute("SELECT id_refeicao FROM refeicoes WHERE id_plano=%s", (id_plano,))
             for ref_ant in cursor.fetchall():
-                cursor.execute("DELETE FROM Alimentos  WHERE id_refeicao=%s", (ref_ant["id_refeicao"],))
+                cursor.execute("DELETE FROM Alimentos WHERE id_refeicao=%s", (ref_ant["id_refeicao"],))
             cursor.execute("DELETE FROM refeicoes WHERE id_plano=%s", (id_plano,))
 
-            # insere novas
             for r in refeicoes:
                 cursor.execute("""
                     INSERT INTO refeicoes (id_plano, titulo, calorias_estimadas)
@@ -176,14 +172,14 @@ def editar_plano(id_plano):
 
 
 # --------------------------------------------------
-# Listar planos (com data + 1º título)
+# Listar planos
 # --------------------------------------------------
 @planos_bp.route("/", methods=["GET"])
 @jwt_required()
 def listar_planos():
     identidade = extrair_user_info()
     user_id = identidade["id"]
-    tipo    = identidade["tipo_usuario"]
+    tipo = identidade["tipo_usuario"]
 
     db = get_db()
     try:
@@ -194,7 +190,7 @@ def listar_planos():
                            p.data_criacao,
                            (SELECT titulo FROM refeicoes r WHERE r.id_plano=p.id_plano ORDER BY r.id_refeicao LIMIT 1) AS titulo_refeicao
                     FROM planosalimentares p
-                    JOIN usuarios u1 ON p.id_aluno       = u1.id_usuario
+                    JOIN usuarios u1 ON p.id_aluno = u1.id_usuario
                     JOIN usuarios u2 ON p.id_nutricionista = u2.id_usuario
                     WHERE p.id_aluno=%s AND p.ativo=TRUE
                 """, (user_id,))
@@ -204,7 +200,7 @@ def listar_planos():
                            p.data_criacao,
                            (SELECT titulo FROM refeicoes r WHERE r.id_plano=p.id_plano ORDER BY r.id_refeicao LIMIT 1) AS titulo_refeicao
                     FROM planosalimentares p
-                    JOIN usuarios u1 ON p.id_aluno       = u1.id_usuario
+                    JOIN usuarios u1 ON p.id_aluno = u1.id_usuario
                     JOIN usuarios u2 ON p.id_nutricionista = u2.id_usuario
                     WHERE p.id_nutricionista=%s AND p.ativo=TRUE
                 """, (user_id,))
@@ -217,14 +213,13 @@ def listar_planos():
 
 
 # --------------------------------------------------
-# Detalhar plano alimentar com refeições e alimentos
+# Detalhar plano alimentar
 # --------------------------------------------------
 @planos_bp.route("/<int:id_plano>", methods=["GET"])
 @jwt_required()
 def detalhar_plano_para_uso(id_plano):
     db = get_db()
     with db.cursor() as cursor:
-        # Buscar dados do plano + nutricionista + aluno
         cursor.execute("""
             SELECT u1.nome AS nome_aluno,
                    u2.nome AS nome_profissional,
@@ -239,7 +234,6 @@ def detalhar_plano_para_uso(id_plano):
         if not plano:
             return jsonify({"message": "Plano não encontrado"}), 404
 
-        # Buscar refeições
         cursor.execute("""
             SELECT id_refeicao, titulo, calorias_estimadas
             FROM refeicoes
@@ -248,7 +242,6 @@ def detalhar_plano_para_uso(id_plano):
         """, (id_plano,))
         refeicoes = cursor.fetchall()
 
-        # Buscar alimentos para cada refeição
         for r in refeicoes:
             cursor.execute("""
                 SELECT nome, peso
@@ -263,7 +256,7 @@ def detalhar_plano_para_uso(id_plano):
 
 
 # --------------------------------------------------
-# Desativar plano
+# Excluir plano
 # --------------------------------------------------
 @planos_bp.route("/<int:id_plano>", methods=["DELETE"])
 @jwt_required()
@@ -280,7 +273,6 @@ def excluir_plano(id_plano):
             return jsonify({"message": "Plano desativado"}), 200
     except Exception as e:
         return jsonify({"message": f"Erro ao desativar plano: {str(e)}"}), 500
-
 
 # =======================
 # Enviar plano por e-mail
