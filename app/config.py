@@ -5,11 +5,11 @@ class Config:
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "wT8p@Alpph@s$eGur4")
 
     DB_CONFIG = {
-        'host': os.getenv("DB_HOST", "127.0.0.1"),
+        'host': os.getenv("DB_HOST", "alpphasgym-db.cd6g2sg0apgt.us-east-2.rds.amazonaws.com"),
         'user': os.getenv("DB_USER", "root"),
-        'password': os.getenv("DB_PASSWORD", "Diniz@3582"),
-        'database': os.getenv("DB_NAME", "alpphas_gym_test"),
-        'port': int(os.getenv("DB_PORT", 3307))
+        'password': os.getenv("DB_PASSWORD", "jvbPjdbLCb3UoyKeHnNH5joqnEjD8MBbAcF2"),
+        'database': os.getenv("DB_NAME", "alpphas_gym"),
+        'port': int(os.getenv("DB_PORT", 3306))
     }
 
     # Outras configurações úteis (opcional)
