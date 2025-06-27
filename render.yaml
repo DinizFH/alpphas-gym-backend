@@ -9,36 +9,14 @@ services:
       - key: FLASK_ENV
         value: production
       - key: DB_HOST
-        value: seu-host-do-banco
+        value: alpphasgym-db.cd6g2sg0apgt.us-east-2.rds.amazonaws.com
       - key: DB_USER
-        value: seu-usuario
+        value: root
       - key: DB_PASSWORD
-        value: sua-senha
+        value: jvbPjdbLCb3UoyKeHnNH5joqnEjD8MBbAcF2
       - key: DB_NAME
         value: alpphas_gym
       - key: DB_PORT
-        value: 3307
+        value: 3306
       - key: SECRET_KEY
-        value: sua-secret-key-segura
-# render.yaml
-services:
-  - type: web
-    name: alpphas-gym-backend
-    env: python
-    buildCommand: ""
-    startCommand: gunicorn app:app
-    envVars:
-      - key: FLASK_ENV
-        value: production
-      - key: DB_HOST
-        value: seu-host-do-banco
-      - key: DB_USER
-        value: seu-usuario
-      - key: DB_PASSWORD
-        value: sua-senha
-      - key: DB_NAME
-        value: alpphas_gym
-      - key: DB_PORT
-        value: 3307
-      - key: SECRET_KEY
-        value: sua-secret-key-segura
+        value: jvbPjdbLCb3UoyKeHnNH5joqnEjD8MBbAcF2
