@@ -138,7 +138,8 @@ def detalhes_treino(id_treino):
                 return jsonify({"message": "Acesso negado"}), 403
 
             cursor.execute("""
-                SELECT e.id_exercicio, e.nome, e.grupo_muscular, te.series, te.repeticoes, te.observacoes
+                SELECT e.id_exercicio, e.nome, e.grupo_muscular, e.video,
+                       te.series, te.repeticoes, te.observacoes
                 FROM treinoexercicios te
                 JOIN exercicios e ON te.id_exercicio = e.id_exercicio
                 WHERE te.id_treino = %s
