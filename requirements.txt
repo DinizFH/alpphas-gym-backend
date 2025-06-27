@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 Flask
 flask-jwt-extended
 flask-login
@@ -11,7 +10,6 @@ reportlab
 pytz
 bcrypt
 dotenv
-=======
 Flask
 flask-jwt-extended
 flask-login
@@ -24,5 +22,4 @@ reportlab
 pytz
 bcrypt
 dotenv
->>>>>>> 7e87a1ff82d598556b34e9f9369e0afc34e8f536
 cryptography
