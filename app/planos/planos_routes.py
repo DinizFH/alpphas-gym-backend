@@ -80,7 +80,7 @@ def criar_plano():
             # Criar refeições e alimentos
             for r in refeicoes:
                 cursor.execute("""
-                    INSERT INTO Refeicoes (id_plano, titulo, calorias_estimadas)
+                    INSERT INTO refeicoes (id_plano, titulo, calorias_estimadas)
                     VALUES (%s, %s, %s)
                 """, (id_plano, r["titulo"], r["calorias_estimadas"]))
                 id_refeicao = cursor.lastrowid
@@ -139,15 +139,15 @@ def editar_plano(id_plano):
                 return jsonify({"message": "Plano não encontrado ou acesso negado"}), 403
 
             # apaga refeições/alimentos antigos
-            cursor.execute("SELECT id_refeicao FROM Refeicoes WHERE id_plano=%s", (id_plano,))
+            cursor.execute("SELECT id_refeicao FROM refeicoes WHERE id_plano=%s", (id_plano,))
             for ref_ant in cursor.fetchall():
                 cursor.execute("DELETE FROM Alimentos  WHERE id_refeicao=%s", (ref_ant["id_refeicao"],))
-            cursor.execute("DELETE FROM Refeicoes WHERE id_plano=%s", (id_plano,))
+            cursor.execute("DELETE FROM refeicoes WHERE id_plano=%s", (id_plano,))
 
             # insere novas
             for r in refeicoes:
                 cursor.execute("""
-                    INSERT INTO Refeicoes (id_plano, titulo, calorias_estimadas)
+                    INSERT INTO refeicoes (id_plano, titulo, calorias_estimadas)
                     VALUES (%s, %s, %s)
                 """, (id_plano, r["titulo"], r["calorias_estimadas"]))
                 id_refeicao = cursor.lastrowid
@@ -192,7 +192,7 @@ def listar_planos():
                 cursor.execute("""
                     SELECT p.id_plano,u1.nome AS nome_aluno,u2.nome AS nome_profissional,
                            p.data_criacao,
-                           (SELECT titulo FROM Refeicoes r WHERE r.id_plano=p.id_plano ORDER BY r.id_refeicao LIMIT 1) AS titulo_refeicao
+                           (SELECT titulo FROM refeicoes r WHERE r.id_plano=p.id_plano ORDER BY r.id_refeicao LIMIT 1) AS titulo_refeicao
                     FROM planosalimentares p
                     JOIN usuarios u1 ON p.id_aluno       = u1.id_usuario
                     JOIN usuarios u2 ON p.id_nutricionista = u2.id_usuario
@@ -202,7 +202,7 @@ def listar_planos():
                 cursor.execute("""
                     SELECT p.id_plano,u1.nome AS nome_aluno,u2.nome AS nome_profissional,
                            p.data_criacao,
-                           (SELECT titulo FROM Refeicoes r WHERE r.id_plano=p.id_plano ORDER BY r.id_refeicao LIMIT 1) AS titulo_refeicao
+                           (SELECT titulo FROM refeicoes r WHERE r.id_plano=p.id_plano ORDER BY r.id_refeicao LIMIT 1) AS titulo_refeicao
                     FROM planosalimentares p
                     JOIN usuarios u1 ON p.id_aluno       = u1.id_usuario
                     JOIN usuarios u2 ON p.id_nutricionista = u2.id_usuario
@@ -242,7 +242,7 @@ def detalhar_plano_para_uso(id_plano):
         # Buscar refeições
         cursor.execute("""
             SELECT id_refeicao, titulo, calorias_estimadas
-            FROM Refeicoes
+            FROM refeicoes
             WHERE id_plano=%s
             ORDER BY id_refeicao
         """, (id_plano,))
@@ -331,7 +331,7 @@ def detalhar_plano_para_uso(id_plano):
         if not plano:
             return None
 
-        cursor.execute("SELECT * FROM Refeicoes WHERE id_plano = %s", (id_plano,))
+        cursor.execute("SELECT * FROM refeicoes WHERE id_plano = %s", (id_plano,))
         refeicoes = cursor.fetchall()
         for r in refeicoes:
             cursor.execute("SELECT nome, peso FROM Alimentos WHERE id_refeicao = %s", (r["id_refeicao"],))
