@@ -1,17 +1,23 @@
 import os
 
 class Config:
-    SECRET_KEY = os.getenv("SECRET_KEY", "Joao#123!")
-    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "wT8p@Alpph@s$eGur4")
+    SECRET_KEY = os.getenv("SECRET_KEY")
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 
     DB_CONFIG = {
-        'host': os.getenv("DB_HOST", "alpphasgym-db.cd6g2sg0apgt.us-east-2.rds.amazonaws.com"),
-        'user': os.getenv("DB_USER", "root"),
-        'password': os.getenv("DB_PASSWORD", "jvbPjdbLCb3UoyKeHnNH5joqnEjD8MBbAcF2"),
-        'database': os.getenv("DB_NAME", "alpphas_gym"),
+        'host': os.getenv("DB_HOST"),
+        'user': os.getenv("DB_USER"),
+        'password': os.getenv("DB_PASSWORD"),
+        'database': os.getenv("DB_NAME"),
         'port': int(os.getenv("DB_PORT", 3306))
     }
 
-    # Outras configurações úteis (opcional)
+    # Acesso rápido às variáveis separadas
+    DB_HOST = DB_CONFIG["host"]
+    DB_USER = DB_CONFIG["user"]
+    DB_PASSWORD = DB_CONFIG["password"]
+    DB_NAME = DB_CONFIG["database"]
+    DB_PORT = DB_CONFIG["port"]
+
     DEBUG = os.getenv("FLASK_DEBUG", "1") == "1"
     TESTING = os.getenv("FLASK_ENV") == "testing"
