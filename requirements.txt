@@ -1,0 +1,13 @@
+Flask
+flask-jwt-extended
+flask-login
+PyMySQL
+gunicorn
+flask-cors
+flask-mail
+requests
+reportlab
+pytz
+bcrypt
+dotenv
+cryptography

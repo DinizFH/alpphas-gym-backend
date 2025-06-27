@@ -1,0 +1,22 @@
+# render.yaml
+services:
+  - type: web
+    name: alpphas-gym-backend
+    env: python
+    buildCommand: ""
+    startCommand: gunicorn app:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: DB_HOST
+        value: seu-host-do-banco
+      - key: DB_USER
+        value: seu-usuario
+      - key: DB_PASSWORD
+        value: sua-senha
+      - key: DB_NAME
+        value: alpphas_gym
+      - key: DB_PORT
+        value: 3307
+      - key: SECRET_KEY
+        value: sua-secret-key-segura

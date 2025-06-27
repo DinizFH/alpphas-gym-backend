@@ -1,0 +1,44 @@
+# Ignorar variáveis de ambiente e configurações sensíveis
+.env
+.env.*
+
+# Ignorar pastas de ambiente virtual
+venv/
+env/
+ENV/
+
+# Ignorar cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignorar banco de dados local (caso use SQLite)
+*.sqlite3
+*.db
+
+# Ignorar logs, PIDs e arquivos temporários
+*.log
+*.pid
+*.tmp
+
+# Ignorar arquivos do sistema
+.DS_Store
+Thumbs.db
+
+# Ignorar arquivos de IDEs
+.vscode/
+.idea/
+
+# Ignorar arquivos de build
+build/
+dist/
+*.egg-info/
+
+# Ignorar uploads (opcional — só se não quiser versionar arquivos enviados)
+uploads/
+static/uploads/
+
+# Ignorar arquivos do Tauri (caso use build desktop futuramente)
+src-tauri/target/
+
+alpphas_gym_frontend_desktop/
