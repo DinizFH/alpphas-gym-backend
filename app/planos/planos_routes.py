@@ -62,7 +62,7 @@ def criar_plano():
     db = get_db()
     try:
         with db.cursor() as cursor:
-            # Verificar se o aluno existe
+            # Verifica se o aluno existe
             cursor.execute(
                 "SELECT id_usuario FROM usuarios WHERE id_usuario=%s AND tipo_usuario='aluno'",
                 (id_aluno,)
@@ -70,14 +70,14 @@ def criar_plano():
             if not cursor.fetchone():
                 return jsonify({"message": "Aluno não encontrado"}), 404
 
-            # Criar plano
+            # Cria plano
             cursor.execute("""
                 INSERT INTO planosalimentares (id_aluno, id_nutricionista, ativo)
                 VALUES (%s, %s, TRUE)
             """, (id_aluno, identidade["id"]))
             id_plano = cursor.lastrowid
 
-            # Criar refeições e alimentos
+            # Refeições e alimentos
             for r in refeicoes:
                 cursor.execute("""
                     INSERT INTO refeicoes (id_plano, titulo, calorias_estimadas)
@@ -87,7 +87,7 @@ def criar_plano():
 
                 for alimento in r.get("alimentos", []):
                     nome = str(alimento.get("nome", "")).strip()
-                    peso_raw = str(alimento.get("peso", "")).replace(",", ".").strip()
+                    peso_raw = alimento.get("peso")
 
                     try:
                         peso = float(peso_raw)
@@ -95,7 +95,7 @@ def criar_plano():
                         peso = None
 
                     if not nome or peso is None or peso <= 0:
-                        continue  # Ignora alimentos inválidos
+                        continue
 
                     cursor.execute("""
                         INSERT INTO alimentos (id_refeicao, nome, peso)
@@ -123,8 +123,8 @@ def editar_plano(id_plano):
     if identidade.get("tipo_usuario") != "nutricionista":
         return jsonify({"message": "Apenas nutricionistas podem editar planos"}), 403
 
-    data       = request.get_json()
-    refeicoes  = data.get("refeicoes", [])
+    data = request.get_json()
+    refeicoes = data.get("refeicoes", [])
     if not refeicoes:
         return jsonify({"message": "Refeições são obrigatórias"}), 400
 
@@ -145,7 +145,7 @@ def editar_plano(id_plano):
                 cursor.execute("DELETE FROM alimentos  WHERE id_refeicao=%s", (ref_ant["id_refeicao"],))
             cursor.execute("DELETE FROM refeicoes WHERE id_plano=%s", (id_plano,))
 
-            # insere novas
+            # insere novas refeições e alimentos
             for r in refeicoes:
                 cursor.execute("""
                     INSERT INTO refeicoes (id_plano, titulo, calorias_estimadas)
@@ -155,7 +155,7 @@ def editar_plano(id_plano):
 
                 for alimento in r.get("alimentos", []):
                     nome = str(alimento.get("nome", "")).strip()
-                    peso_raw = str(alimento.get("peso", "")).replace(",", ".").strip()
+                    peso_raw = alimento.get("peso")
 
                     try:
                         peso = float(peso_raw)
@@ -177,7 +177,6 @@ def editar_plano(id_plano):
         db.rollback()
         print("Erro ao editar plano:", e)
         return jsonify({"message": f"Erro ao editar plano: {str(e)}"}), 500
-
 
 
 # --------------------------------------------------
@@ -327,9 +326,40 @@ def enviar_plano(id_plano):
 
     return jsonify({"message": "Plano enviado com sucesso"}), 200
 
+
+# =======================
+# Função auxiliar
+# =======================
+def detalhar_plano_para_uso(id_plano):
+    db = get_db()
+    with db.cursor() as cursor:
+        cursor.execute("""
+            SELECT u1.nome AS nome_aluno,
+                u2.nome AS nome_profissional,
+                u2.email, u2.telefone, u2.endereco, u2.crn
+            FROM planosalimentares p
+            JOIN usuarios u1 ON p.id_aluno = u1.id_usuario
+            JOIN usuarios u2 ON p.id_nutricionista = u2.id_usuario
+            WHERE p.id_plano = %s
+        """, (id_plano,))
+
+        plano = cursor.fetchone()
+        if not plano:
+            return None
+
+        cursor.execute("SELECT * FROM refeicoes WHERE id_plano = %s", (id_plano,))
+        refeicoes = cursor.fetchall()
+        for r in refeicoes:
+            cursor.execute("SELECT nome, peso FROM alimentos WHERE id_refeicao = %s", (r["id_refeicao"],))
+            r["alimentos"] = cursor.fetchall()
+        plano["refeicoes"] = refeicoes
+        return plano
+
+
 # =======================
 # Gerar PDF do plano
 # =======================
+
 @planos_bp.route("/<int:id_plano>/pdf", methods=["GET"])
 @jwt_required()
 @cross_origin()
@@ -345,27 +375,31 @@ def baixar_pdf(id_plano):
         print(f"[ERRO PDF] {e}")
         return jsonify({"message": "Erro ao gerar PDF"}), 500
 
+
 def gerar_pdf_plano(plano, nome_arquivo="plano_temp.pdf", salvar_em_disco=False):
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
+    # Marca d'água com logo central e transparente
     try:
         logo_path = "app/static/img/alpphas_logo.png"
         watermark = ImageReader(logo_path)
         c.saveState()
         c.translate(width / 2, height / 2)
-        c.setFillColor(Color(0.7, 0.7, 0.7, alpha=0.08))
+        c.setFillColor(Color(0.7, 0.7, 0.7, alpha=0.08))  # Mais suave
         c.drawImage(watermark, -200, -200, width=400, height=400, mask='auto')
         c.restoreState()
     except Exception as e:
         print(f"Erro ao carregar logo transparente: {e}")
 
+    # Cabeçalho com logo no canto superior esquerdo
     try:
         c.drawImage(logo_path, 40, height - 80, width=60, height=60, mask='auto')
     except Exception as e:
         print(f"Erro ao carregar logo: {e}")
 
+    # Dados do nutricionista
     c.setFont("Helvetica", 10)
     x_dados = 120
     y_dados = height - 50
@@ -377,18 +411,22 @@ def gerar_pdf_plano(plano, nome_arquivo="plano_temp.pdf", salvar_em_disco=False)
     y_dados -= 15
     c.drawString(x_dados, y_dados, f"CRN: {plano.get('crn') or 'Não informado'}")
 
+    # Linha horizontal
     linha_y = y_dados - 10
     c.setLineWidth(1)
     c.line(40, linha_y, width - 40, linha_y)
 
+    # Título centralizado
     c.setFont("Helvetica-Bold", 16)
     c.drawCentredString(width / 2, linha_y - 30, "Plano Alimentar")
 
+    # Dados do aluno
     y = linha_y - 60
     c.setFont("Helvetica-Bold", 12)
     c.drawString(80, y, f"Aluno: {plano['nome_aluno']}")
     y -= 20
 
+    # Refeições
     c.setFont("Helvetica", 11)
     for r in plano["refeicoes"]:
         if y < 100:
@@ -414,9 +452,9 @@ def gerar_pdf_plano(plano, nome_arquivo="plano_temp.pdf", salvar_em_disco=False)
     else:
         return buffer
 
-# =======================
-# Enviar plano por WhatsApp
-# =======================
+# ==============================
+# Função Enviar para o WhatsApp 
+# ==============================
 @planos_bp.route("/<int:id_plano>/enviar-whatsapp", methods=["POST"])
 @jwt_required()
 @cross_origin()
@@ -425,6 +463,7 @@ def enviar_plano_whatsapp(id_plano):
     if not plano:
         return jsonify({"message": "Plano não encontrado"}), 404
 
+    # Buscar número do WhatsApp do aluno
     db = get_db()
     with db.cursor() as cursor:
         cursor.execute("SELECT whatsapp FROM usuarios WHERE nome = %s", (plano["nome_aluno"],))
@@ -434,12 +473,15 @@ def enviar_plano_whatsapp(id_plano):
     if not whatsapp:
         return jsonify({"message": "WhatsApp do aluno não encontrado"}), 403
 
+    # Gerar e salvar PDF no disco
     nome_arquivo = f"plano_{id_plano}.pdf"
     caminho_pdf = gerar_pdf_plano(plano, nome_arquivo=nome_arquivo, salvar_em_disco=True)
 
-    servidor = os.getenv("APP_URL", "http://localhost:5000")
+    # Montar URL pública do PDF
+    servidor = os.getenv("APP_URL", "http://localhost:5000")  # Pode ser definido como variável de ambiente
     pdf_url = f"{servidor}/static/pdfs/{nome_arquivo}"
 
+    # Configuração UltraMsg
     ULTRAMSG_TOKEN = os.getenv("ULTRAMSG_TOKEN")
     ULTRAMSG_INSTANCE = os.getenv("ULTRAMSG_INSTANCE")
     zapi_url = f"https://api.ultramsg.com/{ULTRAMSG_INSTANCE}/messages/document"
@@ -457,33 +499,9 @@ def enviar_plano_whatsapp(id_plano):
         if response.status_code == 200:
             return jsonify({"message": "Plano enviado com sucesso via WhatsApp"}), 200
         else:
-            return jsonify({"message": "Erro ao enviar pelo WhatsApp", "detalhes": response.text}), 500
+            return jsonify({
+                "message": "Erro ao enviar pelo WhatsApp",
+                "detalhes": response.text
+            }), 500
     except Exception as e:
         return jsonify({"message": f"Falha na comunicação com UltraMsg: {str(e)}"}), 500
-
-# =======================
-# Função auxiliar
-# =======================
-def detalhar_plano_para_uso(id_plano):
-    db = get_db()
-    with db.cursor() as cursor:
-        cursor.execute("""
-            SELECT u1.nome AS nome_aluno,
-                   u2.nome AS nome_profissional,
-                   u2.email, u2.telefone, u2.endereco, u2.crn
-            FROM planosalimentares p
-            JOIN usuarios u1 ON p.id_aluno = u1.id_usuario
-            JOIN usuarios u2 ON p.id_nutricionista = u2.id_usuario
-            WHERE p.id_plano = %s
-        """, (id_plano,))
-        plano = cursor.fetchone()
-        if not plano:
-            return None
-
-        cursor.execute("SELECT * FROM refeicoes WHERE id_plano = %s", (id_plano,))
-        refeicoes = cursor.fetchall()
-        for r in refeicoes:
-            cursor.execute("SELECT nome, peso FROM alimentos WHERE id_refeicao = %s", (r["id_refeicao"],))
-            r["alimentos"] = cursor.fetchall()
-        plano["refeicoes"] = refeicoes
-        return plano
