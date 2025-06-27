@@ -40,3 +40,5 @@ static/uploads/
 
 # Ignorar arquivos do Tauri (caso use build desktop futuramente)
 src-tauri/target/
+
+alpphas_gym_frontend_desktop/
