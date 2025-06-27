@@ -70,7 +70,7 @@ def obter_perfil():
             cursor.execute("""
                 SELECT id_usuario, nome, email, tipo_usuario, telefone,
                        data_nascimento, genero, cref, crn, cpf, endereco, whatsapp, foto_perfil, perfil_completo
-                FROM Usuarios
+                FROM usuarios
                 WHERE id_usuario = %s AND ativo = TRUE
             """, (user_id,))
             usuario = cursor.fetchone()
@@ -132,7 +132,7 @@ def editar_usuario():
 
     try:
         with db.cursor() as cursor:
-            cursor.execute("SELECT tipo_usuario FROM Usuarios WHERE id_usuario = %s", (user_id,))
+            cursor.execute("SELECT tipo_usuario FROM usuarios WHERE id_usuario = %s", (user_id,))
             result = cursor.fetchone()
             if not result:
                 return jsonify({'msg': 'Usuário não encontrado'}), 404
