@@ -2,7 +2,7 @@ import json
 import os
 from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt, get_jwt_identity
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt
 from app.extensions.db import get_db
 
 auth_bp = Blueprint('auth', __name__)
@@ -37,7 +37,7 @@ def register():
 
     try:
         with db.cursor() as cursor:
-            cursor.execute("SELECT id_usuario FROM Usuarios WHERE email = %s", (email,))
+            cursor.execute("SELECT id_usuario FROM usuarios WHERE email = %s", (email,))
             if cursor.fetchone():
                 return jsonify({'msg': 'E-mail já registrado'}), 400
 
@@ -45,17 +45,17 @@ def register():
 
             if tipo_usuario == "personal":
                 cursor.execute("""
-                    INSERT INTO Usuarios (nome, email, senha_hash, tipo_usuario, ativo, cref)
+                    INSERT INTO usuarios (nome, email, senha_hash, tipo_usuario, ativo, cref)
                     VALUES (%s, %s, %s, %s, TRUE, %s)
                 """, (nome, email, senha_hash, tipo_usuario, cref))
             elif tipo_usuario == "nutricionista":
                 cursor.execute("""
-                    INSERT INTO Usuarios (nome, email, senha_hash, tipo_usuario, ativo, crn)
+                    INSERT INTO usuarios (nome, email, senha_hash, tipo_usuario, ativo, crn)
                     VALUES (%s, %s, %s, %s, TRUE, %s)
                 """, (nome, email, senha_hash, tipo_usuario, crn))
             else:  # aluno
                 cursor.execute("""
-                    INSERT INTO Usuarios (nome, email, senha_hash, tipo_usuario, ativo)
+                    INSERT INTO usuarios (nome, email, senha_hash, tipo_usuario, ativo)
                     VALUES (%s, %s, %s, %s, TRUE)
                 """, (nome, email, senha_hash, tipo_usuario))
 
@@ -92,7 +92,7 @@ def login():
         with db.cursor() as cursor:
             cursor.execute("""
                 SELECT id_usuario, nome, email, senha_hash, tipo_usuario, cpf
-                FROM Usuarios
+                FROM usuarios
                 WHERE email = %s AND ativo = TRUE
             """, (email,))
             user = cursor.fetchone()
