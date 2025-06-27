@@ -141,19 +141,19 @@ def editar_usuario():
 
             if tipo_usuario == "personal":
                 cursor.execute("""
-                    UPDATE Usuarios
+                    UPDATE usuarios
                     SET nome = %s, telefone = %s, data_nascimento = %s, genero = %s, cref = %s
                     WHERE id_usuario = %s AND ativo = TRUE
                 """, (nome, telefone, data_nascimento, genero, cref, user_id))
             elif tipo_usuario == "nutricionista":
                 cursor.execute("""
-                    UPDATE Usuarios
+                    UPDATE usuarios
                     SET nome = %s, telefone = %s, data_nascimento = %s, genero = %s, crn = %s
                     WHERE id_usuario = %s AND ativo = TRUE
                 """, (nome, telefone, data_nascimento, genero, crn, user_id))
             else:
                 cursor.execute("""
-                    UPDATE Usuarios
+                    UPDATE usuarios
                     SET nome = %s, telefone = %s, data_nascimento = %s, genero = %s
                     WHERE id_usuario = %s AND ativo = TRUE
                 """, (nome, telefone, data_nascimento, genero, user_id))
@@ -181,7 +181,7 @@ def desativar_usuario():
 
     try:
         with db.cursor() as cursor:
-            cursor.execute("UPDATE Usuarios SET ativo = FALSE WHERE id_usuario = %s", (user_id,))
+            cursor.execute("UPDATE usuarios SET ativo = FALSE WHERE id_usuario = %s", (user_id,))
             db.commit()
             return jsonify({'msg': 'Conta desativada com sucesso'}), 200
     except Exception as e:
@@ -221,7 +221,7 @@ def completar_perfil():
     try:
         with db.cursor() as cursor:
             cursor.execute("""
-                UPDATE Usuarios
+                UPDATE usuarios
                 SET cpf = %s,
                     data_nascimento = %s,
                     endereco = %s,
