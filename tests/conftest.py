@@ -1,4 +1,10 @@
 import pytest
+import os
+from dotenv import load_dotenv
+
+# Carrega variáveis do ambiente de teste
+load_dotenv(dotenv_path=".env.test")
+
 from app import create_app
 from app.extensions.db import get_db
 
@@ -6,6 +12,12 @@ from app.extensions.db import get_db
 def app():
     app = create_app()
     app.config["TESTING"] = True
+
+    # Segurança: evitar rodar testes no banco de produção
+    assert app.config["DB_NAME"] == "alpphas_gym_test", (
+        "⚠️ Você está tentando rodar os testes em um banco que não é de testes!"
+    )
+
     return app
 
 
