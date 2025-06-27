@@ -87,14 +87,9 @@ def criar_plano():
 
                 for alimento in r.get("alimentos", []):
                     nome = str(alimento.get("nome", "")).strip()
-                    peso_raw = alimento.get("peso")
+                    peso = str(alimento.get("peso", "")).strip()
 
-                    try:
-                        peso = float(peso_raw)
-                    except (ValueError, TypeError):
-                        peso = None
-
-                    if not nome or peso is None or peso <= 0:
+                    if not nome or not peso:
                         continue
 
                     cursor.execute("""
@@ -109,9 +104,6 @@ def criar_plano():
         db.rollback()
         print("Erro ao criar plano:", e)
         return jsonify({"message": f"Erro ao criar plano: {str(e)}"}), 500
-
-
-
 
 # --------------------------------------------------
 # Editar plano alimentar
@@ -139,13 +131,13 @@ def editar_plano(id_plano):
             if not cursor.fetchone():
                 return jsonify({"message": "Plano não encontrado ou acesso negado"}), 403
 
-            # apaga refeições/alimentos antigos
+            # apagar refeições/alimentos antigos
             cursor.execute("SELECT id_refeicao FROM refeicoes WHERE id_plano=%s", (id_plano,))
             for ref_ant in cursor.fetchall():
-                cursor.execute("DELETE FROM alimentos  WHERE id_refeicao=%s", (ref_ant["id_refeicao"],))
+                cursor.execute("DELETE FROM alimentos WHERE id_refeicao=%s", (ref_ant["id_refeicao"],))
             cursor.execute("DELETE FROM refeicoes WHERE id_plano=%s", (id_plano,))
 
-            # insere novas refeições e alimentos
+            # inserir novas refeições e alimentos
             for r in refeicoes:
                 cursor.execute("""
                     INSERT INTO refeicoes (id_plano, titulo, calorias_estimadas)
@@ -155,14 +147,9 @@ def editar_plano(id_plano):
 
                 for alimento in r.get("alimentos", []):
                     nome = str(alimento.get("nome", "")).strip()
-                    peso_raw = alimento.get("peso")
+                    peso = str(alimento.get("peso", "")).strip()
 
-                    try:
-                        peso = float(peso_raw)
-                    except (ValueError, TypeError):
-                        peso = None
-
-                    if not nome or peso is None or peso <= 0:
+                    if not nome or not peso:
                         continue
 
                     cursor.execute("""
@@ -177,7 +164,6 @@ def editar_plano(id_plano):
         db.rollback()
         print("Erro ao editar plano:", e)
         return jsonify({"message": f"Erro ao editar plano: {str(e)}"}), 500
-
 
 # --------------------------------------------------
 # Listar planos (com data + 1º título)
