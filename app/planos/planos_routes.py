@@ -190,30 +190,42 @@ def listar_planos():
         with db.cursor() as cursor:
             if tipo == "aluno":
                 cursor.execute("""
-                    SELECT p.id_plano,u1.nome AS nome_aluno,u2.nome AS nome_profissional,
-                           p.data_criacao,
-                           (SELECT titulo FROM refeicoes r WHERE r.id_plano=p.id_plano ORDER BY r.id_refeicao LIMIT 1) AS titulo_refeicao
+                    SELECT 
+                        p.id_plano,
+                        u1.nome AS nome_aluno,
+                        u2.nome AS nome_profissional,
+                        p.data_criacao,
+                        MIN(r.titulo) AS titulo_refeicao
                     FROM planosalimentares p
-                    JOIN usuarios u1 ON p.id_aluno       = u1.id_usuario
+                    JOIN usuarios u1 ON p.id_aluno = u1.id_usuario
                     JOIN usuarios u2 ON p.id_nutricionista = u2.id_usuario
-                    WHERE p.id_aluno=%s AND p.ativo=TRUE
+                    LEFT JOIN refeicoes r ON r.id_plano = p.id_plano
+                    WHERE p.id_aluno = %s AND p.ativo = TRUE
+                    GROUP BY p.id_plano
                 """, (user_id,))
             elif tipo == "nutricionista":
                 cursor.execute("""
-                    SELECT p.id_plano,u1.nome AS nome_aluno,u2.nome AS nome_profissional,
-                           p.data_criacao,
-                           (SELECT titulo FROM refeicoes r WHERE r.id_plano=p.id_plano ORDER BY r.id_refeicao LIMIT 1) AS titulo_refeicao
+                    SELECT 
+                        p.id_plano,
+                        u1.nome AS nome_aluno,
+                        u2.nome AS nome_profissional,
+                        p.data_criacao,
+                        MIN(r.titulo) AS titulo_refeicao
                     FROM planosalimentares p
-                    JOIN usuarios u1 ON p.id_aluno       = u1.id_usuario
+                    JOIN usuarios u1 ON p.id_aluno = u1.id_usuario
                     JOIN usuarios u2 ON p.id_nutricionista = u2.id_usuario
-                    WHERE p.id_nutricionista=%s AND p.ativo=TRUE
+                    LEFT JOIN refeicoes r ON r.id_plano = p.id_plano
+                    WHERE p.id_nutricionista = %s AND p.ativo = TRUE
+                    GROUP BY p.id_plano
                 """, (user_id,))
             else:
                 return jsonify({"message": "Tipo de usuário não autorizado"}), 403
 
             return jsonify(cursor.fetchall()), 200
     except Exception as e:
+        print("[ERRO] Falha ao listar planos:", e)
         return jsonify({"message": f"Erro ao listar planos: {str(e)}"}), 500
+
 
 
 # --------------------------------------------------
