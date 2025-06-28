@@ -464,6 +464,9 @@ def enviar_plano_whatsapp(id_plano):
     if not whatsapp:
         return jsonify({"message": "WhatsApp do aluno não encontrado"}), 403
 
+    # Corrigir formato: remover "+" se existir
+    whatsapp = whatsapp.replace("+", "")
+
     # Gerar e salvar PDF no disco
     nome_arquivo = f"plano_{id_plano}.pdf"
     caminho_pdf = gerar_pdf_plano(plano, nome_arquivo=nome_arquivo, salvar_em_disco=True)
