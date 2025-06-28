@@ -454,7 +454,6 @@ def enviar_plano_whatsapp(id_plano):
     if not plano:
         return jsonify({"message": "Plano não encontrado"}), 404
 
-    # Buscar número do WhatsApp do aluno
     db = get_db()
     with db.cursor() as cursor:
         cursor.execute("SELECT whatsapp FROM usuarios WHERE id_usuario = %s", (plano["id_aluno"],))
@@ -464,7 +463,6 @@ def enviar_plano_whatsapp(id_plano):
     if not whatsapp:
         return jsonify({"message": "WhatsApp do aluno não encontrado"}), 403
 
-    # Gerar e salvar o PDF
     nome_arquivo = f"plano_{id_plano}.pdf"
     try:
         caminho_pdf = gerar_pdf_plano(plano, nome_arquivo=nome_arquivo, salvar_em_disco=True)
@@ -473,28 +471,30 @@ def enviar_plano_whatsapp(id_plano):
         print(f"[ERRO AO GERAR PDF]: {e}")
         return jsonify({"message": "Erro ao gerar PDF"}), 500
 
-    # Link do PDF
     servidor = os.getenv("APP_URL", "http://localhost:5000")
     pdf_url = f"{servidor}/static/pdfs/{nome_arquivo}"
 
-    # Mensagem WhatsApp
     mensagem = f"Olá! Segue o link para acessar seu Plano Alimentar personalizado pelo Alpphas GYM 💪\n{pdf_url}"
 
-    # Enviar via UltraMsg
     ULTRAMSG_TOKEN = os.getenv("ULTRAMSG_TOKEN")
     ULTRAMSG_INSTANCE = os.getenv("ULTRAMSG_INSTANCE")
 
-    # ✅ TOKEN vai como parâmetro da URL
+    if not ULTRAMSG_TOKEN or not ULTRAMSG_INSTANCE:
+        return jsonify({"message": "Configuração UltraMsg ausente"}), 500
+
+    # ✅ TOKEN na URL
     url = f"https://api.ultramsg.com/{ULTRAMSG_INSTANCE}/messages/chat?token={ULTRAMSG_TOKEN}"
 
-    # ✅ Payload só com os dados exigidos
-    payload = f"to={whatsapp}&body={mensagem}"
-    payload = payload.encode('utf8').decode('iso-8859-1')
+    # ✅ Payload em formato JSON
+    payload = {
+        "to": whatsapp,
+        "body": mensagem
+    }
 
-    headers = {'content-type': 'application/x-www-form-urlencoded'}
+    headers = {'Content-Type': 'application/json'}
 
     try:
-        response = requests.post(url, data=payload, headers=headers)
+        response = requests.post(url, json=payload, headers=headers)
         print(f"[ULTRAMSG] Status: {response.status_code}")
         print(f"[ULTRAMSG] Response: {response.text}")
 
