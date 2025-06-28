@@ -483,9 +483,14 @@ def enviar_plano_whatsapp(id_plano):
     # Enviar via UltraMsg
     ULTRAMSG_TOKEN = os.getenv("ULTRAMSG_TOKEN")
     ULTRAMSG_INSTANCE = os.getenv("ULTRAMSG_INSTANCE")
-    url = f"https://api.ultramsg.com/{ULTRAMSG_INSTANCE}/messages/chat"
+
+    # ✅ Agora o token está no link da URL
+    url = f"https://api.ultramsg.com/{ULTRAMSG_INSTANCE}/messages/chat?token={ULTRAMSG_TOKEN}"
+
+    # ✅ Payload agora contém apenas os campos necessários
     payload = f"token={ULTRAMSG_TOKEN}&to={whatsapp}&body={mensagem}"
     payload = payload.encode('utf8').decode('iso-8859-1')
+    
     headers = {'content-type': 'application/x-www-form-urlencoded'}
 
     try:
