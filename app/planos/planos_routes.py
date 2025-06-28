@@ -484,13 +484,13 @@ def enviar_plano_whatsapp(id_plano):
     ULTRAMSG_TOKEN = os.getenv("ULTRAMSG_TOKEN")
     ULTRAMSG_INSTANCE = os.getenv("ULTRAMSG_INSTANCE")
 
-    # ✅ Agora o token está no link da URL
+    # ✅ TOKEN vai como parâmetro da URL
     url = f"https://api.ultramsg.com/{ULTRAMSG_INSTANCE}/messages/chat?token={ULTRAMSG_TOKEN}"
 
-    # ✅ Payload agora contém apenas os campos necessários
-    payload = f"token={ULTRAMSG_TOKEN}&to={whatsapp}&body={mensagem}"
+    # ✅ Payload só com os dados exigidos
+    payload = f"to={whatsapp}&body={mensagem}"
     payload = payload.encode('utf8').decode('iso-8859-1')
-    
+
     headers = {'content-type': 'application/x-www-form-urlencoded'}
 
     try:
@@ -498,7 +498,7 @@ def enviar_plano_whatsapp(id_plano):
         print(f"[ULTRAMSG] Status: {response.status_code}")
         print(f"[ULTRAMSG] Response: {response.text}")
 
-        if response.status_code == 200:
+        if response.status_code == 200 and "error" not in response.text.lower():
             return jsonify({"message": "Plano enviado com sucesso via WhatsApp"}), 200
         else:
             return jsonify({
