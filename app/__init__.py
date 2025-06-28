@@ -17,6 +17,7 @@ from app.dashboard.dashboard_routes import dashboard_bp
 from app.registrostreino.registrostreino_routes import registrostreino_bp
 from app.exercicios.exercicios_routes import exercicios_bp
 from app.administrador.admin_routes import admin_bp
+from app.administrador.logs_admin_routes import logs_admin_bp
 
 def create_app():
     app = Flask(__name__, static_folder='static', static_url_path='/static')
@@ -112,5 +113,6 @@ def create_app():
     app.register_blueprint(registrostreino_bp, url_prefix="/registrostreino")
     app.register_blueprint(exercicios_bp, url_prefix="/exercicios")
     app.register_blueprint(admin_bp, url_prefix="/admin")
+    app.register_blueprint(logs_admin_bp)
 
     return app
