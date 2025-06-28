@@ -459,39 +459,40 @@ def enviar_plano_whatsapp(id_plano):
     with db.cursor() as cursor:
         cursor.execute("SELECT whatsapp FROM usuarios WHERE id_usuario = %s", (plano["id_aluno"],))
         dados = cursor.fetchone()
-        whatsapp = dados.get("whatsapp") if dados else None
+        whatsapp = dados["whatsapp"] if dados and "whatsapp" in dados else None
 
     if not whatsapp:
         return jsonify({"message": "WhatsApp do aluno não encontrado"}), 403
 
     # Gerar e salvar o PDF
     nome_arquivo = f"plano_{id_plano}.pdf"
-    gerar_pdf_plano(plano, nome_arquivo=nome_arquivo, salvar_em_disco=True)
+    try:
+        caminho_pdf = gerar_pdf_plano(plano, nome_arquivo=nome_arquivo, salvar_em_disco=True)
+        print(f"[PDF] Salvo com sucesso em: {caminho_pdf}")
+    except Exception as e:
+        print(f"[ERRO AO GERAR PDF]: {e}")
+        return jsonify({"message": "Erro ao gerar PDF"}), 500
 
-    # Verifica se o arquivo foi realmente salvo
-    caminho_pdf = os.path.join("static", "pdfs", nome_arquivo)
-    if not os.path.exists(caminho_pdf):
-        return jsonify({"message": "Falha ao gerar o PDF do plano."}), 500
-
-    # Gerar o link público do PDF
+    # Link do PDF
     servidor = os.getenv("APP_URL", "http://localhost:5000")
     pdf_url = f"{servidor}/static/pdfs/{nome_arquivo}"
 
-    # Texto da mensagem
+    # Mensagem WhatsApp
     mensagem = f"Olá! Segue o link para acessar seu Plano Alimentar personalizado pelo Alpphas GYM 💪\n{pdf_url}"
 
-    # Configuração UltraMsg
+    # Enviar via UltraMsg
     ULTRAMSG_TOKEN = os.getenv("ULTRAMSG_TOKEN")
     ULTRAMSG_INSTANCE = os.getenv("ULTRAMSG_INSTANCE")
     url = f"https://api.ultramsg.com/{ULTRAMSG_INSTANCE}/messages/chat"
-
-    # Montar payload com form-urlencoded
     payload = f"token={ULTRAMSG_TOKEN}&to={whatsapp}&body={mensagem}"
     payload = payload.encode('utf8').decode('iso-8859-1')
     headers = {'content-type': 'application/x-www-form-urlencoded'}
 
     try:
         response = requests.post(url, data=payload, headers=headers)
+        print(f"[ULTRAMSG] Status: {response.status_code}")
+        print(f"[ULTRAMSG] Response: {response.text}")
+
         if response.status_code == 200:
             return jsonify({"message": "Plano enviado com sucesso via WhatsApp"}), 200
         else:
