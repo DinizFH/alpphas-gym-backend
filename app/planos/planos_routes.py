@@ -320,9 +320,10 @@ def detalhar_plano_para_uso(id_plano):
     db = get_db()
     with db.cursor() as cursor:
         cursor.execute("""
-            SELECT u1.nome AS nome_aluno,
-                u2.nome AS nome_profissional,
-                u2.email, u2.telefone, u2.endereco, u2.crn
+            SELECT p.id_aluno,
+                   u1.nome AS nome_aluno,
+                   u2.nome AS nome_profissional,
+                   u2.email, u2.telefone, u2.endereco, u2.crn
             FROM planosalimentares p
             JOIN usuarios u1 ON p.id_aluno = u1.id_usuario
             JOIN usuarios u2 ON p.id_nutricionista = u2.id_usuario
@@ -452,7 +453,7 @@ def enviar_plano_whatsapp(id_plano):
     # Buscar número do WhatsApp do aluno
     db = get_db()
     with db.cursor() as cursor:
-        cursor.execute("SELECT whatsapp FROM usuarios WHERE nome = %s", (plano["nome_aluno"],))
+        cursor.execute("SELECT whatsapp FROM usuarios WHERE id_usuario = %s", (plano["id_aluno"],))
         dados = cursor.fetchone()
         whatsapp = dados.get("whatsapp") if dados else None
 
