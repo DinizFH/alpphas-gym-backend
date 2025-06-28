@@ -433,6 +433,10 @@ def gerar_pdf_plano(plano, nome_arquivo="plano_temp.pdf", salvar_em_disco=False)
 
     if salvar_em_disco:
         caminho = os.path.join("static", "pdfs", nome_arquivo)
+
+        # ✅ Garante que a pasta exista antes de salvar
+        os.makedirs(os.path.dirname(caminho), exist_ok=True)
+
         with open(caminho, "wb") as f:
             f.write(buffer.getbuffer())
         return caminho
