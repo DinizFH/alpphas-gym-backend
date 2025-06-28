@@ -464,37 +464,34 @@ def enviar_plano_whatsapp(id_plano):
     if not whatsapp:
         return jsonify({"message": "WhatsApp do aluno não encontrado"}), 403
 
-    # Corrigir formato: remover "+" se existir
-    whatsapp = whatsapp.replace("+", "")
-
-    # Gerar e salvar PDF no disco
+    # Gerar e salvar o PDF
     nome_arquivo = f"plano_{id_plano}.pdf"
-    caminho_pdf = gerar_pdf_plano(plano, nome_arquivo=nome_arquivo, salvar_em_disco=True)
+    gerar_pdf_plano(plano, nome_arquivo=nome_arquivo, salvar_em_disco=True)
 
-    # Montar URL pública do PDF
-    servidor = os.getenv("APP_URL", "http://localhost:5000")  # Pode ser definido como variável de ambiente
+    # Gerar o link público do PDF
+    servidor = os.getenv("APP_URL", "http://localhost:5000")
     pdf_url = f"{servidor}/static/pdfs/{nome_arquivo}"
+
+    # Texto da mensagem
+    mensagem = f"Olá! Segue o link para acessar seu Plano Alimentar personalizado pelo Alpphas GYM 💪\n{pdf_url}"
 
     # Configuração UltraMsg
     ULTRAMSG_TOKEN = os.getenv("ULTRAMSG_TOKEN")
     ULTRAMSG_INSTANCE = os.getenv("ULTRAMSG_INSTANCE")
-    zapi_url = f"https://api.ultramsg.com/{ULTRAMSG_INSTANCE}/messages/document"
+    url = f"https://api.ultramsg.com/{ULTRAMSG_INSTANCE}/messages/chat"
 
-    payload = {
-        "token": ULTRAMSG_TOKEN,
-        "to": whatsapp,
-        "filename": nome_arquivo,
-        "document": pdf_url,
-        "caption": "Olá! Segue em anexo seu Plano Alimentar personalizado pelo Alpphas GYM 💪"
-    }
+    # Montar payload com form-urlencoded
+    payload = f"token={ULTRAMSG_TOKEN}&to={whatsapp}&body={mensagem}"
+    payload = payload.encode('utf8').decode('iso-8859-1')
+    headers = {'content-type': 'application/x-www-form-urlencoded'}
 
     try:
-        response = requests.post(zapi_url, json=payload)
+        response = requests.post(url, data=payload, headers=headers)
         if response.status_code == 200:
             return jsonify({"message": "Plano enviado com sucesso via WhatsApp"}), 200
         else:
             return jsonify({
-                "message": "Erro ao enviar pelo WhatsApp",
+                "message": "Erro ao enviar mensagem via WhatsApp",
                 "detalhes": response.text
             }), 500
     except Exception as e:
