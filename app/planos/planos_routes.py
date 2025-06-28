@@ -7,6 +7,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from reportlab.lib.colors import Color
+from app.utils.log_admin import registrar_log_admin
 
 from app.extensions.db import get_db
 from app.extensions.mail import mail
@@ -482,15 +483,11 @@ def enviar_plano_whatsapp(id_plano):
     if not ULTRAMSG_TOKEN or not ULTRAMSG_INSTANCE:
         return jsonify({"message": "Configuração UltraMsg ausente"}), 500
 
-    # ✅ TOKEN na URL
     url = f"https://api.ultramsg.com/{ULTRAMSG_INSTANCE}/messages/chat?token={ULTRAMSG_TOKEN}"
-
-    # ✅ Payload em formato JSON
     payload = {
         "to": whatsapp,
         "body": mensagem
     }
-
     headers = {'Content-Type': 'application/json'}
 
     try:
@@ -499,6 +496,8 @@ def enviar_plano_whatsapp(id_plano):
         print(f"[ULTRAMSG] Response: {response.text}")
 
         if response.status_code == 200 and "error" not in response.text.lower():
+            usuario = get_jwt_identity()
+            registrar_log_admin(f"Enviou plano {id_plano} via WhatsApp", usuario_id=usuario["id"])
             return jsonify({"message": "Plano enviado com sucesso via WhatsApp"}), 200
         else:
             return jsonify({
