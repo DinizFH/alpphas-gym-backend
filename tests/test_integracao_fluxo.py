@@ -81,7 +81,7 @@ class TestIntegracaoFluxo:
             "id_aluno": self.id_aluno,
             "nome_treino": "Treino A",
             "exercicios": [
-                {"id_exercicio": 1, "series": 3, "repeticoes": 12, "observacoes": "Executar com cuidado"}
+                {"id_exercicio": 2, "series": 3, "repeticoes": 12, "observacoes": "Executar com cuidado"}
             ]
         }, headers={"Authorization": f"Bearer {self.token_personal}"})
         print("[DEBUG treino]", res.status_code, res.data)
