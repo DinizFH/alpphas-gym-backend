@@ -5,6 +5,9 @@ from app.extensions.db import get_db
 
 logs_admin_bp = Blueprint("logs_admin", __name__)
 
+# =========================
+# Listar logs com filtros e paginação
+# =========================
 @logs_admin_bp.route("/admin/logs", methods=["GET"])
 @jwt_required()
 def listar_logs():
@@ -12,11 +15,12 @@ def listar_logs():
     if identidade.get("email") != "administrador@alpphasgym.com":
         return jsonify({"message": "Acesso não autorizado"}), 403
 
-    # Filtros opcionais da query string
+    # Filtros opcionais
     tipo = request.args.get("tipo")
     id_usuario = request.args.get("id_usuario")
     data_inicio = request.args.get("data_inicio")  # formato: YYYY-MM-DD
     data_fim = request.args.get("data_fim")        # formato: YYYY-MM-DD
+    offset = int(request.args.get("offset", 0))
 
     filtros = []
     valores = []
@@ -46,8 +50,9 @@ def listar_logs():
         LEFT JOIN usuarios u ON l.id_usuario = u.id_usuario
         {where_sql}
         ORDER BY l.data_hora DESC
-        LIMIT 100
+        LIMIT 10 OFFSET %s
     """
+    valores.append(offset)
 
     db = get_db()
     with db.cursor() as cursor:
@@ -55,3 +60,20 @@ def listar_logs():
         logs = cursor.fetchall()
 
     return jsonify(logs)
+
+# =========================
+# Limpar todos os logs
+# =========================
+@logs_admin_bp.route("/admin/logs", methods=["DELETE"])
+@jwt_required()
+def limpar_logs():
+    identidade = extrair_user_info()
+    if identidade.get("email") != "administrador@alpphasgym.com":
+        return jsonify({"message": "Acesso não autorizado"}), 403
+
+    db = get_db()
+    with db.cursor() as cursor:
+        cursor.execute("DELETE FROM logs")
+        db.commit()
+
+    return jsonify({"message": "Todos os logs foram apagados com sucesso."}), 200
