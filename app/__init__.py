@@ -19,7 +19,7 @@ from app.exercicios.exercicios_routes import exercicios_bp
 from app.administrador.admin_routes import admin_bp
 
 def create_app():
-    app = Flask(__name__, static_folder='app/static', static_url_path='/static')
+    app = Flask(__name__, static_folder='static', static_url_path='/static')
     app.config.from_object(Config)
 
     # =====================

@@ -432,7 +432,7 @@ def gerar_pdf_plano(plano, nome_arquivo="plano_temp.pdf", salvar_em_disco=False)
     buffer.seek(0)
 
     if salvar_em_disco:
-        caminho = os.path.join("static", "pdfs", nome_arquivo)
+        caminho = os.path.join("app", "static", "pdfs", nome_arquivo)
 
         # ✅ Garante que a pasta exista antes de salvar
         os.makedirs(os.path.dirname(caminho), exist_ok=True)
@@ -467,6 +467,11 @@ def enviar_plano_whatsapp(id_plano):
     # Gerar e salvar o PDF
     nome_arquivo = f"plano_{id_plano}.pdf"
     gerar_pdf_plano(plano, nome_arquivo=nome_arquivo, salvar_em_disco=True)
+
+    # Verifica se o arquivo foi realmente salvo
+    caminho_pdf = os.path.join("static", "pdfs", nome_arquivo)
+    if not os.path.exists(caminho_pdf):
+        return jsonify({"message": "Falha ao gerar o PDF do plano."}), 500
 
     # Gerar o link público do PDF
     servidor = os.getenv("APP_URL", "http://localhost:5000")
