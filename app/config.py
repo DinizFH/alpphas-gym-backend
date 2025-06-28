@@ -14,7 +14,7 @@ class Config:
         'database': os.getenv("DB_NAME"),
         'port': int(os.getenv("DB_PORT", 3306))
     }
-
+    
     # Acesso rápido às variáveis separadas
     DB_HOST = DB_CONFIG["host"]
     DB_USER = DB_CONFIG["user"]
