@@ -26,7 +26,7 @@ def listar_logs():
     valores = []
 
     if tipo:
-        filtros.append("l.tipo_acao = %s")
+        filtros.append("l.tipo_envio = %s")
         valores.append(tipo)
 
     if id_usuario:
@@ -44,7 +44,7 @@ def listar_logs():
     where_sql = "WHERE " + " AND ".join(filtros) if filtros else ""
 
     query = f"""
-        SELECT l.id_log, l.tipo_acao, l.descricao, l.data_hora,
+        SELECT l.id_log, l.tipo_envio, l.destino, l.status, l.mensagem, l.data_hora,
                u.nome AS nome_usuario, u.email
         FROM logs l
         LEFT JOIN usuarios u ON l.id_usuario = u.id_usuario
@@ -59,7 +59,7 @@ def listar_logs():
         cursor.execute(query, valores)
         logs = cursor.fetchall()
 
-    return jsonify(logs)
+    return jsonify(logs), 200
 
 # =========================
 # Limpar todos os logs
