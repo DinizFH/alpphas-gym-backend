@@ -7,7 +7,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from reportlab.lib.colors import Color
-from app.utils.log_admin import registrar_log_envio
+from app.utils.log_admin import registrar_log_admin
 
 from app.extensions.db import get_db
 from app.extensions.mail import mail
@@ -311,8 +311,7 @@ def enviar_plano(id_plano):
 
         # Geração segura do PDF
         try:
-            pdf_bytes = gerar_pdf_plano(plano)
-            pdf_stream = BytesIO(pdf_bytes)
+            pdf_stream = gerar_pdf_plano(plano)  # já retorna um BytesIO
         except Exception as e:
             print("Erro ao gerar PDF:", e)
             return jsonify({"message": "Erro ao gerar o plano em PDF"}), 500
@@ -321,34 +320,29 @@ def enviar_plano(id_plano):
         try:
             msg = Message(
                 subject="Seu Plano Alimentar - Alpphas GYM",
-                sender=None,
+                sender=None,  # usa o MAIL_DEFAULT_SENDER do .env
                 recipients=[email],
-                body=f"Olá {nome},\n\nSegue em anexo o seu plano alimentar personalizado.\n\nAtenciosamente,\nEquipe Alpphas GYM"
+                body=(
+                    f"Olá {nome},\n\n"
+                    f"Segue em anexo o seu plano alimentar personalizado.\n\n"
+                    f"Atenciosamente,\nEquipe Alpphas GYM"
+                )
             )
             msg.attach(
                 filename=f"plano_alimentar_{id_plano}.pdf",
                 content_type="application/pdf",
-                data=pdf_stream.read()
+                data=pdf_stream.getvalue()  # CORREÇÃO: pega os bytes do stream
             )
             mail.send(msg)
-
-            # REGISTRO DE LOG (SUCESSO)
-            registrar_log_envio(plano["id_aluno"], "email", email, "sucesso")
-
             return jsonify({"message": "Plano enviado com sucesso por e-mail."}), 200
 
         except Exception as e:
             print("Erro ao enviar e-mail:", e)
-
-            # REGISTRO DE LOG (ERRO)
-            registrar_log_envio(plano["id_aluno"], "email", email, "erro", str(e))
-
             return jsonify({"message": f"Erro ao enviar o e-mail: {str(e)}"}), 500
 
     except Exception as e:
         print("Erro inesperado no envio:", e)
         return jsonify({"message": "Erro inesperado ao processar o envio do plano."}), 500
-
 
 
 # =======================
