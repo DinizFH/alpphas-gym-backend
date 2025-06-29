@@ -311,8 +311,7 @@ def enviar_plano(id_plano):
 
         # Geração segura do PDF
         try:
-            pdf_bytes = gerar_pdf_plano(plano)
-            pdf_stream = BytesIO(pdf_bytes)
+            pdf_stream = gerar_pdf_plano(plano)  # já retorna um BytesIO
         except Exception as e:
             print("Erro ao gerar PDF:", e)
             return jsonify({"message": "Erro ao gerar o plano em PDF"}), 500
@@ -332,7 +331,7 @@ def enviar_plano(id_plano):
             msg.attach(
                 filename=f"plano_alimentar_{id_plano}.pdf",
                 content_type="application/pdf",
-                data=pdf_stream.read()
+                data=pdf_stream.getvalue()  # CORREÇÃO: pega os bytes do stream
             )
             mail.send(msg)
             return jsonify({"message": "Plano enviado com sucesso por e-mail."}), 200
