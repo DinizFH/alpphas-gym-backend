@@ -314,7 +314,6 @@ def enviar_plano(id_plano):
             pdf_stream = gerar_pdf_plano(plano)  # já retorna um BytesIO
         except Exception as e:
             print("Erro ao gerar PDF:", e)
-            from app.utils.log_admin import registrar_log_envio
             registrar_log_envio(plano["id_aluno"], "email", email, "erro", "Erro ao gerar PDF")
             return jsonify({"message": "Erro ao gerar o plano em PDF"}), 500
 
@@ -337,21 +336,17 @@ def enviar_plano(id_plano):
             )
             mail.send(msg)
 
-            from app.utils.log_admin import registrar_log_envio
             registrar_log_envio(plano["id_aluno"], "email", email, "sucesso")
-
             return jsonify({"message": "Plano enviado com sucesso por e-mail."}), 200
 
         except Exception as e:
             print("Erro ao enviar e-mail:", e)
-            from app.utils.log_admin import registrar_log_envio
             registrar_log_envio(plano["id_aluno"], "email", email, "erro", str(e))
             return jsonify({"message": f"Erro ao enviar o e-mail: {str(e)}"}), 500
 
     except Exception as e:
         print("Erro inesperado no envio:", e)
         return jsonify({"message": "Erro inesperado ao processar o envio do plano."}), 500
-
 
 
 # =======================
@@ -513,7 +508,6 @@ def enviar_plano_whatsapp(id_plano):
             caminho_pdf = gerar_pdf_plano(plano, nome_arquivo=nome_arquivo, salvar_em_disco=True)
         except Exception as e:
             print("Erro ao gerar PDF:", e)
-            from app.utils.log_admin import registrar_log_envio
             registrar_log_envio(plano["id_aluno"], "whatsapp", numero, "erro", "Erro ao gerar PDF")
             return jsonify({"message": "Erro ao gerar o PDF do plano"}), 500
 
@@ -527,7 +521,7 @@ def enviar_plano_whatsapp(id_plano):
             f"Atenciosamente,\nEquipe Alpphas GYM"
         )
 
-        # Enviar via UltraMsg (caso queira mudar o serviço, adaptar aqui)
+        # Enviar via UltraMsg
         instancia = os.getenv("ULTRAMSG_INSTANCE")
         token = os.getenv("ULTRAMSG_TOKEN")
         payload = {
@@ -535,6 +529,7 @@ def enviar_plano_whatsapp(id_plano):
             "to": numero,
             "body": mensagem
         }
+
         try:
             response = requests.post(
                 f"https://api.ultramsg.com/{instancia}/messages/chat",
@@ -542,14 +537,11 @@ def enviar_plano_whatsapp(id_plano):
             )
             response.raise_for_status()
 
-            from app.utils.log_admin import registrar_log_envio
             registrar_log_envio(plano["id_aluno"], "whatsapp", numero, "sucesso")
-
             return jsonify({"message": "Plano enviado com sucesso via WhatsApp"}), 200
 
         except Exception as e:
             print("Erro ao enviar WhatsApp:", e)
-            from app.utils.log_admin import registrar_log_envio
             registrar_log_envio(plano["id_aluno"], "whatsapp", numero, "erro", str(e))
             return jsonify({"message": f"Erro ao enviar via WhatsApp: {str(e)}"}), 500
 
