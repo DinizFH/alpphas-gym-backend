@@ -287,46 +287,63 @@ def excluir_plano(id_plano):
 
 
 # =======================
-# Enviar plano por e-mail
+# Enviar plano por e-mail (anexo PDF)
 # =======================
 @planos_bp.route("/<int:id_plano>/enviar", methods=["POST"])
 @jwt_required()
 @cross_origin()
 def enviar_plano(id_plano):
-    plano = detalhar_plano_para_uso(id_plano)
-    if not plano:
-        return jsonify({"message": "Plano não encontrado"}), 404
-
-    db = get_db()
-    with db.cursor() as cursor:
-        cursor.execute("SELECT email, nome FROM usuarios WHERE id_usuario = %s", (plano["id_aluno"],))
-        user = cursor.fetchone()
-        email = user.get("email") if user else None
-        nome_aluno = user.get("nome") if user else plano.get("nome_aluno", "Aluno")
-
-    if not email:
-        return jsonify({"message": "E-mail do aluno não encontrado"}), 400
-
     try:
-        # Gera PDF do plano
-        pdf_bytes = gerar_pdf_plano(plano)
-        pdf_stream = BytesIO(pdf_bytes)
+        plano = detalhar_plano_para_uso(id_plano)
+        if not plano:
+            return jsonify({"message": "Plano não encontrado"}), 404
 
-        # Cria e envia e-mail
-        msg = Message(
-            subject="Seu Plano Alimentar - Alpphas GYM",
-            sender=None,
-            recipients=[email]
-        )
-        msg.body = f"Olá {nome_aluno},\n\nSegue em anexo seu plano alimentar personalizado.\n\nAtenciosamente,\nEquipe Alpphas GYM"
-        msg.attach("plano_alimentar.pdf", "application/pdf", pdf_stream.read())
-        mail.send(msg)
+        db = get_db()
+        with db.cursor() as cursor:
+            cursor.execute("SELECT email, nome FROM usuarios WHERE id_usuario = %s", (plano["id_aluno"],))
+            dados = cursor.fetchone()
 
-        return jsonify({"message": "Plano enviado com sucesso por e-mail."}), 200
+        email = dados["email"] if dados and "email" in dados else None
+        nome = dados["nome"] if dados and "nome" in dados else "Aluno"
+
+        if not email:
+            return jsonify({"message": "E-mail do aluno não encontrado"}), 403
+
+        # Geração segura do PDF
+        try:
+            pdf_bytes = gerar_pdf_plano(plano)
+            pdf_stream = BytesIO(pdf_bytes)
+        except Exception as e:
+            print("Erro ao gerar PDF:", e)
+            return jsonify({"message": "Erro ao gerar o plano em PDF"}), 500
+
+        # Envio do e-mail
+        try:
+            msg = Message(
+                subject="Seu Plano Alimentar - Alpphas GYM",
+                sender=None,  # usa o MAIL_DEFAULT_SENDER do .env
+                recipients=[email],
+                body=(
+                    f"Olá {nome},\n\n"
+                    f"Segue em anexo o seu plano alimentar personalizado.\n\n"
+                    f"Atenciosamente,\nEquipe Alpphas GYM"
+                )
+            )
+            msg.attach(
+                filename=f"plano_alimentar_{id_plano}.pdf",
+                content_type="application/pdf",
+                data=pdf_stream.read()
+            )
+            mail.send(msg)
+            return jsonify({"message": "Plano enviado com sucesso por e-mail."}), 200
+
+        except Exception as e:
+            print("Erro ao enviar e-mail:", e)
+            return jsonify({"message": f"Erro ao enviar o e-mail: {str(e)}"}), 500
 
     except Exception as e:
-        print("Erro ao enviar e-mail:", e)
-        return jsonify({"message": f"Erro ao enviar e-mail: {str(e)}"}), 500
+        print("Erro inesperado no envio:", e)
+        return jsonify({"message": "Erro inesperado ao processar o envio do plano."}), 500
 
 
 # =======================
