@@ -30,7 +30,7 @@ def listar_logs():
         valores.append(tipo)
 
     if id_usuario:
-        filtros.append("l.id_usuario = %s")
+        filtros.append("l.id_aluno = %s")
         valores.append(id_usuario)
 
     if data_inicio:
@@ -47,7 +47,7 @@ def listar_logs():
         SELECT l.id_log, l.tipo_envio, l.destino, l.status, l.mensagem, l.data_hora,
                u.nome AS nome_usuario, u.email
         FROM logs l
-        LEFT JOIN usuarios u ON l.id_usuario = u.id_usuario
+        LEFT JOIN usuarios u ON l.id_aluno = u.id_usuario
         {where_sql}
         ORDER BY l.data_hora DESC
         LIMIT 10 OFFSET %s
