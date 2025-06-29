@@ -315,7 +315,7 @@ def enviar_plano(id_plano):
         # Cria e envia e-mail
         msg = Message(
             subject="Seu Plano Alimentar - Alpphas GYM",
-            sender=("Alpphas GYM", "alpphastec@gmail.com"),
+            sender=None,
             recipients=[email]
         )
         msg.body = f"Olá {nome_aluno},\n\nSegue em anexo seu plano alimentar personalizado.\n\nAtenciosamente,\nEquipe Alpphas GYM"
