@@ -14,6 +14,7 @@ from app.extensions.mail import mail
 from app.utils.jwt import extrair_user_info
 from flask_mail import Message
 
+
 planos_bp = Blueprint("planos", __name__)
 
 # --------------------------------------------------
@@ -298,20 +299,34 @@ def enviar_plano(id_plano):
 
     db = get_db()
     with db.cursor() as cursor:
-        cursor.execute("SELECT email FROM usuarios WHERE nome = %s", (plano["nome_aluno"],))
+        cursor.execute("SELECT email, nome FROM usuarios WHERE id_usuario = %s", (plano["id_aluno"],))
         user = cursor.fetchone()
         email = user.get("email") if user else None
+        nome_aluno = user.get("nome") if user else plano.get("nome_aluno", "Aluno")
 
     if not email:
         return jsonify({"message": "E-mail do aluno não encontrado"}), 400
 
-    pdf = gerar_pdf_plano(plano)
-    msg = Message("Seu Plano Alimentar - Alpphas GYM", recipients=[email])
-    msg.body = "Olá! Segue em anexo seu plano alimentar personalizado."
-    msg.attach("plano_alimentar.pdf", "application/pdf", pdf.read())
-    mail.send(msg)
+    try:
+        # Gera PDF do plano
+        pdf_bytes = gerar_pdf_plano(plano)
+        pdf_stream = BytesIO(pdf_bytes)
 
-    return jsonify({"message": "Plano enviado com sucesso"}), 200
+        # Cria e envia e-mail
+        msg = Message(
+            subject="Seu Plano Alimentar - Alpphas GYM",
+            sender=("Alpphas GYM", "alpphastec@gmail.com"),
+            recipients=[email]
+        )
+        msg.body = f"Olá {nome_aluno},\n\nSegue em anexo seu plano alimentar personalizado.\n\nAtenciosamente,\nEquipe Alpphas GYM"
+        msg.attach("plano_alimentar.pdf", "application/pdf", pdf_stream.read())
+        mail.send(msg)
+
+        return jsonify({"message": "Plano enviado com sucesso por e-mail."}), 200
+
+    except Exception as e:
+        print("Erro ao enviar e-mail:", e)
+        return jsonify({"message": f"Erro ao enviar e-mail: {str(e)}"}), 500
 
 
 # =======================
