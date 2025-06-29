@@ -326,3 +326,28 @@ def restaurar_backup(nome):
         return jsonify({"message": f"Backup {nome} restaurado com sucesso"}), 200
     except subprocess.CalledProcessError as e:
         return jsonify({"message": f"Erro ao restaurar backup: {e}"}), 500
+
+# ===============================
+# Listar logs de envio (e-mail e WhatsApp)
+# ===============================
+@admin_bp.route("/logs-envio", methods=["GET"])
+@jwt_required()
+def listar_logs_envio():
+    if not verificar_admin():
+        return jsonify({"message": "Acesso negado"}), 403
+
+    db = get_db()
+    try:
+        with db.cursor() as cursor:
+            cursor.execute("""
+                SELECT l.id_log, u.nome AS usuario, u.email,
+                       l.tipo_envio, l.destino, l.conteudo, l.status, l.data_envio
+                FROM logs l
+                LEFT JOIN usuarios u ON l.id_usuario = u.id_usuario
+                WHERE l.tipo_envio IS NOT NULL
+                ORDER BY l.data_envio DESC
+                LIMIT 100
+            """)
+            return jsonify(cursor.fetchall()), 200
+    except Exception as e:
+        return jsonify({"message": f"Erro ao obter logs de envio: {str(e)}"}), 500
