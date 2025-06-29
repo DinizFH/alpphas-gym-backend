@@ -7,7 +7,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from reportlab.lib.colors import Color
-from app.utils.log_admin import registrar_log_admin
+from app.utils.log_admin import registrar_log_envio
 
 from app.extensions.db import get_db
 from app.extensions.mail import mail
@@ -314,6 +314,8 @@ def enviar_plano(id_plano):
             pdf_stream = gerar_pdf_plano(plano)  # já retorna um BytesIO
         except Exception as e:
             print("Erro ao gerar PDF:", e)
+            from app.utils.log_admin import registrar_log_envio
+            registrar_log_envio(plano["id_aluno"], "email", email, "erro", "Erro ao gerar PDF")
             return jsonify({"message": "Erro ao gerar o plano em PDF"}), 500
 
         # Envio do e-mail
@@ -331,18 +333,25 @@ def enviar_plano(id_plano):
             msg.attach(
                 filename=f"plano_alimentar_{id_plano}.pdf",
                 content_type="application/pdf",
-                data=pdf_stream.getvalue()  # CORREÇÃO: pega os bytes do stream
+                data=pdf_stream.getvalue()  # CORRETO: pega os bytes do stream
             )
             mail.send(msg)
+
+            from app.utils.log_admin import registrar_log_envio
+            registrar_log_envio(plano["id_aluno"], "email", email, "sucesso")
+
             return jsonify({"message": "Plano enviado com sucesso por e-mail."}), 200
 
         except Exception as e:
             print("Erro ao enviar e-mail:", e)
+            from app.utils.log_admin import registrar_log_envio
+            registrar_log_envio(plano["id_aluno"], "email", email, "erro", str(e))
             return jsonify({"message": f"Erro ao enviar o e-mail: {str(e)}"}), 500
 
     except Exception as e:
         print("Erro inesperado no envio:", e)
         return jsonify({"message": "Erro inesperado ao processar o envio do plano."}), 500
+
 
 
 # =======================
@@ -475,49 +484,75 @@ def gerar_pdf_plano(plano, nome_arquivo="plano_temp.pdf", salvar_em_disco=False)
     else:
         return buffer
 
-# ==============================
-# Função Enviar para o WhatsApp 
-# ==============================
+# =======================
+# Enviar plano por WhatsApp (link do PDF)
+# =======================
 @planos_bp.route("/<int:id_plano>/enviar-whatsapp", methods=["POST"])
 @jwt_required()
 @cross_origin()
 def enviar_plano_whatsapp(id_plano):
-    plano = detalhar_plano_para_uso(id_plano)
-    if not plano:
-        return jsonify({"message": "Plano não encontrado"}), 404
-
-    db = get_db()
-    with db.cursor() as cursor:
-        cursor.execute("SELECT whatsapp FROM usuarios WHERE id_usuario = %s", (plano["id_aluno"],))
-        dados = cursor.fetchone()
-        whatsapp = dados["whatsapp"] if dados and "whatsapp" in dados else None
-
-    if not whatsapp:
-        return jsonify({"message": "WhatsApp do aluno não encontrado"}), 403
-
-    nome_arquivo = f"plano_{id_plano}.pdf"
     try:
-        caminho_pdf = gerar_pdf_plano(plano, nome_arquivo=nome_arquivo, salvar_em_disco=True)
-        link = f"{os.getenv('APP_URL', '')}/static/pdf/{nome_arquivo}"
+        plano = detalhar_plano_para_uso(id_plano)
+        if not plano:
+            return jsonify({"message": "Plano não encontrado"}), 404
 
-        # Envio via API WhatsApp (UltraMsg ou outra)
-        mensagem = f"Olá! Aqui está seu plano alimentar da Alpphas GYM:\n\n📄 {link}"
+        db = get_db()
+        with db.cursor() as cursor:
+            cursor.execute("SELECT whatsapp, nome FROM usuarios WHERE id_usuario = %s", (plano["id_aluno"],))
+            dados = cursor.fetchone()
+
+        numero = dados["whatsapp"] if dados and "whatsapp" in dados else None
+        nome = dados["nome"] if dados and "nome" in dados else "Aluno"
+
+        if not numero:
+            return jsonify({"message": "WhatsApp do aluno não encontrado"}), 403
+
+        # Gerar e salvar PDF temporário
+        try:
+            nome_arquivo = f"plano_{id_plano}.pdf"
+            caminho_pdf = gerar_pdf_plano(plano, nome_arquivo=nome_arquivo, salvar_em_disco=True)
+        except Exception as e:
+            print("Erro ao gerar PDF:", e)
+            from app.utils.log_admin import registrar_log_envio
+            registrar_log_envio(plano["id_aluno"], "whatsapp", numero, "erro", "Erro ao gerar PDF")
+            return jsonify({"message": "Erro ao gerar o PDF do plano"}), 500
+
+        # Montar link do PDF (Render ou local)
+        url_base = os.getenv("APP_URL", "http://localhost:5000")
+        url_pdf = f"{url_base}/planos/{id_plano}/pdf"
+
+        # Mensagem para envio
+        mensagem = (
+            f"Olá {nome}, segue o link para o seu plano alimentar personalizado:\n\n{url_pdf}\n\n"
+            f"Atenciosamente,\nEquipe Alpphas GYM"
+        )
+
+        # Enviar via UltraMsg (caso queira mudar o serviço, adaptar aqui)
+        instancia = os.getenv("ULTRAMSG_INSTANCE")
+        token = os.getenv("ULTRAMSG_TOKEN")
         payload = {
-            "token": os.getenv("ULTRAMSG_TOKEN"),
-            "to": f"+{whatsapp}",
+            "token": token,
+            "to": numero,
             "body": mensagem
         }
-        requests.post(f"https://api.ultramsg.com/{os.getenv('ULTRAMSG_INSTANCE')}/messages/chat", data=payload)
+        try:
+            response = requests.post(
+                f"https://api.ultramsg.com/{instancia}/messages/chat",
+                json=payload
+            )
+            response.raise_for_status()
 
-        # REGISTRO DE LOG (SUCESSO)
-        registrar_log_envio(plano["id_aluno"], "whatsapp", whatsapp, "sucesso")
+            from app.utils.log_admin import registrar_log_envio
+            registrar_log_envio(plano["id_aluno"], "whatsapp", numero, "sucesso")
 
-        return jsonify({"message": "Plano enviado por WhatsApp com sucesso"}), 200
+            return jsonify({"message": "Plano enviado com sucesso via WhatsApp"}), 200
+
+        except Exception as e:
+            print("Erro ao enviar WhatsApp:", e)
+            from app.utils.log_admin import registrar_log_envio
+            registrar_log_envio(plano["id_aluno"], "whatsapp", numero, "erro", str(e))
+            return jsonify({"message": f"Erro ao enviar via WhatsApp: {str(e)}"}), 500
 
     except Exception as e:
-        print("Erro ao enviar WhatsApp:", e)
-
-        # REGISTRO DE LOG (ERRO)
-        registrar_log_envio(plano["id_aluno"], "whatsapp", whatsapp, "erro", str(e))
-
-        return jsonify({"message": "Erro ao enviar plano por WhatsApp"}), 500
+        print("Erro inesperado no envio:", e)
+        return jsonify({"message": "Erro inesperado ao processar o envio via WhatsApp."}), 500
