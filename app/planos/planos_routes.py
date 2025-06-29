@@ -7,7 +7,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from reportlab.lib.colors import Color
-from app.utils.log_admin import registrar_log_envio
+from app.utils.logs import registrar_log_envio  #
 
 from app.extensions.db import get_db
 from app.extensions.mail import mail
@@ -332,7 +332,7 @@ def enviar_plano(id_plano):
             msg.attach(
                 filename=f"plano_alimentar_{id_plano}.pdf",
                 content_type="application/pdf",
-                data=pdf_stream.getvalue()  # CORRETO: pega os bytes do stream
+                data=pdf_stream.getvalue()
             )
             mail.send(msg)
 
@@ -505,7 +505,7 @@ def enviar_plano_whatsapp(id_plano):
         # Gerar e salvar PDF temporário
         try:
             nome_arquivo = f"plano_{id_plano}.pdf"
-            caminho_pdf = gerar_pdf_plano(plano, nome_arquivo=nome_arquivo, salvar_em_disco=True)
+            gerar_pdf_plano(plano, nome_arquivo=nome_arquivo, salvar_em_disco=True)
         except Exception as e:
             print("Erro ao gerar PDF:", e)
             registrar_log_envio(plano["id_aluno"], "whatsapp", numero, "erro", "Erro ao gerar PDF")
