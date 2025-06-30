@@ -330,24 +330,54 @@ def restaurar_backup(nome):
 # ===============================
 # Listar logs de envio (e-mail e WhatsApp)
 # ===============================
-@admin_bp.route("/logs-envio", methods=["GET"])
+@admin_bp.route("/logs", methods=["GET"])
 @jwt_required()
-def listar_logs_envio():
+def listar_logs_unificados():
     if not verificar_admin():
         return jsonify({"message": "Acesso negado"}), 403
+
+    tipo = request.args.get("tipo")  # tipo=acao, envio ou None (todos)
 
     db = get_db()
     try:
         with db.cursor() as cursor:
-            cursor.execute("""
-                SELECT l.id_log, u.nome AS usuario, u.email,
-                       l.tipo_envio, l.destino, l.conteudo, l.status, l.data_envio
-                FROM logs l
-                LEFT JOIN usuarios u ON l.id_usuario = u.id_usuario
-                WHERE l.tipo_envio IS NOT NULL
-                ORDER BY l.data_envio DESC
-                LIMIT 100
-            """)
+            if tipo == "envio":
+                cursor.execute("""
+                    SELECT l.id_log, 'envio' AS tipo_log,
+                        u.nome AS usuario_destino, u.email,
+                        l.tipo_envio, l.destino, l.conteudo, l.status, l.data_envio,
+                        e.nome AS usuario_origem
+                    FROM logs l
+                    LEFT JOIN usuarios u ON l.id_usuario = u.id_usuario
+                    LEFT JOIN usuarios e ON JSON_EXTRACT(l.conteudo, '$.id_enviante') = e.id_usuario
+                    WHERE l.tipo_log = 'envio'
+                    ORDER BY l.data_envio DESC
+                    LIMIT 100
+                """)
+            elif tipo == "acao":
+                cursor.execute("""
+                    SELECT l.id_log, 'acao' AS tipo_log,
+                        l.usuario_origem, l.acao, l.detalhes, l.data
+                    FROM logs l
+                    WHERE l.tipo_log = 'acao'
+                    ORDER BY l.data DESC
+                    LIMIT 100
+                """)
+            else:
+                # Mostrar os dois tipos, ordenados pela data mais recente
+                cursor.execute("""
+                    SELECT l.id_log, l.tipo_log,
+                        l.usuario_origem, l.acao, l.detalhes,
+                        u.nome AS usuario_destino, u.email,
+                        l.tipo_envio, l.destino, l.conteudo, l.status,
+                        l.data_envio, l.data
+                    FROM logs l
+                    LEFT JOIN usuarios u ON l.id_usuario = u.id_usuario
+                    ORDER BY l.data DESC
+                    LIMIT 100
+                """)
+
             return jsonify(cursor.fetchall()), 200
+
     except Exception as e:
-        return jsonify({"message": f"Erro ao obter logs de envio: {str(e)}"}), 500
+        return jsonify({"message": f"Erro ao obter logs: {str(e)}"}), 500
