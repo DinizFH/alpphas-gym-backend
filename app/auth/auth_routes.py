@@ -5,6 +5,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt, get_jwt_identity
 from app.extensions.db import get_db
 from app.utils.logs import registrar_log_acao
+import secrets
+from flask_mail import Message
+from app.extensions.mail import mail
+from app.utils.jwt import extrair_user_info
+
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -128,7 +133,9 @@ def login():
     finally:
         db.close()
 
-
+#=========================================
+#Cadastro rapido (Feito por profissionais)
+#=========================================
 @auth_bp.route('/logout', methods=['POST'])
 @jwt_required()
 def logout():
@@ -149,3 +156,70 @@ def logout():
         return jsonify({"msg": "Erro ao fazer logout"}), 500
     finally:
         db.close()
+
+@auth_bp.route("/cadastro-rapido", methods=["POST"])
+@jwt_required()
+def cadastro_rapido():
+    identidade = extrair_user_info()
+    if identidade["tipo_usuario"] not in ["personal", "nutricionista"]:
+        return jsonify({"msg": "Apenas profissionais podem cadastrar alunos"}), 403
+
+    data = request.get_json()
+    nome = data.get("nome")
+    cpf = data.get("cpf")
+    email = data.get("email")
+    whatsapp = data.get("whatsapp")
+    data_nascimento = data.get("data_nascimento")
+
+    if not all([nome, cpf, email, whatsapp, data_nascimento]):
+        return jsonify({"msg": "Todos os campos são obrigatórios"}), 400
+
+    senha_temporaria = secrets.token_urlsafe(8)
+    senha_hash = generate_password_hash(senha_temporaria)
+
+    db = get_db()
+    try:
+        with db.cursor() as cursor:
+            cursor.execute("SELECT id_usuario FROM usuarios WHERE email = %s", (email,))
+            if cursor.fetchone():
+                return jsonify({"msg": "Já existe um usuário com este e-mail"}), 400
+
+            cursor.execute("SELECT id_usuario FROM usuarios WHERE cpf = %s", (cpf,))
+            if cursor.fetchone():
+                return jsonify({"msg": "Já existe um usuário com este CPF"}), 400
+
+            cursor.execute("""
+                INSERT INTO usuarios (nome, cpf, email, whatsapp, data_nascimento, senha_hash, tipo_usuario, ativo, perfil_completo)
+                VALUES (%s, %s, %s, %s, %s, %s, 'aluno', TRUE, FALSE)
+            """, (nome, cpf, email, whatsapp, data_nascimento, senha_hash))
+            db.commit()
+
+        # Enviar e-mail com instruções
+        try:
+            msg = Message("Bem-vindo ao Alpphas GYM!",
+                          recipients=[email])
+            msg.body = f"""
+Olá, {nome}!
+
+Você foi cadastrado por um profissional no sistema Alpphas GYM.
+
+Use o link abaixo para acessar o sistema e definir sua senha:
+
+https://alpphasgym.com/definir-senha?email={email}
+
+Senha temporária: {senha_temporaria}
+
+Recomendamos que você troque sua senha ao acessar.
+
+Atenciosamente,
+Equipe Alpphas GYM
+"""
+            mail.send(msg)
+        except Exception as e:
+            print("Erro ao enviar e-mail:", str(e))
+
+        return jsonify({"msg": "Aluno cadastrado com sucesso e e-mail enviado"}), 201
+
+    except Exception as e:
+        print("Erro ao cadastrar aluno:", e)
+        return jsonify({"msg": "Erro interno"}), 500
