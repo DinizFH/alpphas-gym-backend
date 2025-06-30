@@ -349,7 +349,10 @@ def listar_logs_unificados():
                         e.nome AS usuario_origem
                     FROM logs l
                     LEFT JOIN usuarios u ON l.id_usuario = u.id_usuario
-                    LEFT JOIN usuarios e ON JSON_EXTRACT(l.conteudo, '$.id_enviante') = e.id_usuario
+                    LEFT JOIN usuarios e ON
+                        l.tipo_log = 'envio' AND
+                        JSON_VALID(l.conteudo) AND
+                        JSON_EXTRACT(l.conteudo, '$.id_enviante') = e.id_usuario
                     WHERE l.tipo_log = 'envio'
                     ORDER BY l.data_envio DESC
                     LIMIT 100
