@@ -334,12 +334,11 @@ def restaurar_backup(nome):
 # ===============================
 @admin_bp.route("/logs", methods=["GET"])
 @jwt_required()
-def listar_logs_unificados():
+def listar_logs():
     if not verificar_admin():
         return jsonify({"message": "Acesso negado"}), 403
 
-    tipo = request.args.get("tipo")  # tipo=acao, envio ou None (todos)
-
+    tipo = request.args.get("tipo")  # envio, acao, ou None
     db = get_db()
     try:
         with db.cursor() as cursor:
@@ -372,23 +371,10 @@ def listar_logs_unificados():
                         l.data_envio, l.data
                     FROM logs l
                     LEFT JOIN usuarios u ON l.id_usuario = u.id_usuario
-                    ORDER BY l.data DESC
+                    ORDER BY COALESCE(l.data_envio, l.data) DESC
                     LIMIT 100
                 """)
 
-            logs = cursor.fetchall()
-
-            # ✅ Sanitizar campo `conteudo`
-            for log in logs:
-                if "conteudo" in log and isinstance(log["conteudo"], str):
-                    try:
-                        log["conteudo"] = json.loads(log["conteudo"])
-                    except Exception:
-                        log["conteudo"] = {}
-
-            return jsonify(logs), 200
-
+            return jsonify(cursor.fetchall()), 200
     except Exception as e:
-        print("[ERRO AO OBTER LOGS]:", str(e))
-        traceback.print_exc()
         return jsonify({"message": f"Erro ao obter logs: {str(e)}"}), 500
