@@ -2,8 +2,9 @@ import json
 import os
 from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt, get_jwt_identity
 from app.extensions.db import get_db
+from app.utils.logs import registrar_log_acao
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -61,8 +62,9 @@ def register():
 
             db.commit()
             id_usuario = cursor.lastrowid
-            response = {'msg': 'Usuário registrado com sucesso'}
+            registrar_log_acao(nome, "registro_usuario", f"Registrou novo usuário tipo {tipo_usuario}")
 
+            response = {'msg': 'Usuário registrado com sucesso'}
             if os.getenv("FLASK_ENV") == "testing":
                 response['id_usuario'] = id_usuario
 
@@ -98,9 +100,11 @@ def login():
             user = cursor.fetchone()
 
             if not user:
+                registrar_log_acao("sistema", "login_falha", f"Tentativa com e-mail inexistente: {email}")
                 return jsonify({'msg': 'Usuário não encontrado ou inativo'}), 401
 
             if not check_password_hash(user["senha_hash"], senha):
+                registrar_log_acao(user["nome"], "login_falha", "Senha incorreta")
                 return jsonify({'msg': 'Credenciais inválidas'}), 401
 
             payload = {
@@ -111,6 +115,7 @@ def login():
             }
 
             token = create_access_token(identity=json.dumps(payload))
+            registrar_log_acao(user["nome"], "login_sucesso", "Login realizado com sucesso")
 
             return jsonify({
                 'access_token': token,
@@ -128,11 +133,16 @@ def login():
 @jwt_required()
 def logout():
     jti = get_jwt()["jti"]
+    identidade_raw = get_jwt_identity()
+    identidade = json.loads(identidade_raw) if isinstance(identidade_raw, str) else identidade_raw
+    nome_usuario = identidade.get("email") or identidade.get("id")
+
     db = get_db()
     try:
         with db.cursor() as cursor:
             cursor.execute("INSERT INTO tokensrevogados (jti) VALUES (%s)", (jti,))
             db.commit()
+        registrar_log_acao(nome_usuario, "logout", "Logout realizado com sucesso")
         return jsonify({"message": "Logout realizado com sucesso"}), 200
     except Exception as e:
         print("Erro ao revogar token:", e)
