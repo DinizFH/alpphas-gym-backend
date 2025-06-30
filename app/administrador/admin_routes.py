@@ -328,7 +328,7 @@ def restaurar_backup(nome):
         return jsonify({"message": f"Erro ao restaurar backup: {e}"}), 500
 
 # ===============================
-# Listar logs de envio (e-mail e WhatsApp)
+# Listar logs de envio
 # ===============================
 @admin_bp.route("/logs", methods=["GET"])
 @jwt_required()
@@ -345,14 +345,9 @@ def listar_logs_unificados():
                 cursor.execute("""
                     SELECT l.id_log, 'envio' AS tipo_log,
                         u.nome AS usuario_destino, u.email,
-                        l.tipo_envio, l.destino, l.conteudo, l.status, l.data_envio,
-                        e.nome AS usuario_origem
+                        l.tipo_envio, l.destino, l.conteudo, l.status, l.data_envio
                     FROM logs l
                     LEFT JOIN usuarios u ON l.id_usuario = u.id_usuario
-                    LEFT JOIN usuarios e ON
-                        l.tipo_log = 'envio' AND
-                        JSON_VALID(l.conteudo) AND
-                        JSON_EXTRACT(l.conteudo, '$.id_enviante') = e.id_usuario
                     WHERE l.tipo_log = 'envio'
                     ORDER BY l.data_envio DESC
                     LIMIT 100
