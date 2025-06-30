@@ -8,6 +8,8 @@ import bcrypt
 import os
 import subprocess
 from dotenv import load_dotenv
+from app.utils.admin import verificar_admin
+import traceback
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -362,7 +364,6 @@ def listar_logs_unificados():
                     LIMIT 100
                 """)
             else:
-                # Mostrar os dois tipos, ordenados pela data mais recente
                 cursor.execute("""
                     SELECT l.id_log, l.tipo_log,
                         l.usuario_origem, l.acao, l.detalhes,
@@ -375,7 +376,19 @@ def listar_logs_unificados():
                     LIMIT 100
                 """)
 
-            return jsonify(cursor.fetchall()), 200
+            logs = cursor.fetchall()
+
+            # ✅ Sanitizar campo `conteudo`
+            for log in logs:
+                if "conteudo" in log and isinstance(log["conteudo"], str):
+                    try:
+                        log["conteudo"] = json.loads(log["conteudo"])
+                    except Exception:
+                        log["conteudo"] = {}
+
+            return jsonify(logs), 200
 
     except Exception as e:
+        print("[ERRO AO OBTER LOGS]:", str(e))
+        traceback.print_exc()
         return jsonify({"message": f"Erro ao obter logs: {str(e)}"}), 500
