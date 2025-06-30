@@ -217,27 +217,6 @@ def inspecionar_tabela():
     except Exception as e:
         return jsonify({"message": f"Erro ao consultar tabela: {str(e)}"}), 500
 
-# ===============================
-# Listar logs do sistema
-# ===============================
-@admin_bp.route("/logs", methods=["GET"])
-@jwt_required()
-def listar_logs():
-    if not verificar_admin():
-        return jsonify({"message": "Acesso negado"}), 403
-
-    db = get_db()
-    try:
-        with db.cursor() as cursor:
-            cursor.execute("""
-                SELECT id_log, usuario, acao, data, detalhes
-                FROM logs
-                ORDER BY data DESC
-                LIMIT 100
-            """)
-            return jsonify(cursor.fetchall()), 200
-    except Exception as e:
-        return jsonify({"message": f"Erro ao obter logs: {str(e)}"}), 500
 
 # ===============================
 # Backups do sistema
@@ -328,9 +307,10 @@ def restaurar_backup(nome):
         return jsonify({"message": f"Backup {nome} restaurado com sucesso"}), 200
     except subprocess.CalledProcessError as e:
         return jsonify({"message": f"Erro ao restaurar backup: {e}"}), 500
+    
 
 # ===============================
-# Listar logs de envio
+# Listar logs do sistema (completo)
 # ===============================
 @admin_bp.route("/logs", methods=["GET"])
 @jwt_required()
