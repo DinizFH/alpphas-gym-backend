@@ -1,75 +1,120 @@
-import io
+import os
+from io import BytesIO
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import cm
 from reportlab.lib.utils import ImageReader
-from matplotlib import pyplot as plt
-from datetime import datetime
+from reportlab.lib.colors import Color
 
-def gerar_pdf_avaliacao(avaliacao, historico=[]):
-    buffer = io.BytesIO()
-    pdf = canvas.Canvas(buffer, pagesize=A4)
-    largura, altura = A4
+def gerar_pdf_avaliacao(avaliacao, nome_arquivo="avaliacao_temp.pdf", salvar_em_disco=False):
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
 
-    # Cabeçalho
-    pdf.setFont("Helvetica-Bold", 16)
-    pdf.drawString(2 * cm, altura - 2 * cm, "Relatório de Avaliação Física")
+    # Marca d'água com logo central transparente
+    try:
+        logo_path = "app/static/img/alpphas_logo.png"
+        watermark = ImageReader(logo_path)
+        c.saveState()
+        c.translate(width / 2, height / 2)
+        c.setFillColor(Color(0.7, 0.7, 0.7, alpha=0.08))
+        c.drawImage(watermark, -200, -200, width=400, height=400, mask='auto')
+        c.restoreState()
+    except Exception as e:
+        print(f"Erro ao carregar logo transparente: {e}")
 
-    # Dados principais
-    pdf.setFont("Helvetica", 12)
-    pdf.drawString(2 * cm, altura - 3.5 * cm, f"Aluno: {avaliacao['nome_aluno']}")
-    pdf.drawString(2 * cm, altura - 4.2 * cm, f"Profissional: {avaliacao['nome_profissional']}")
-    data_formatada = datetime.strptime(avaliacao["data_avaliacao"], "%Y-%m-%d").strftime("%d/%m/%Y")
-    pdf.drawString(2 * cm, altura - 4.9 * cm, f"Data da Avaliação: {data_formatada}")
+    # Cabeçalho com logo no canto superior esquerdo
+    try:
+        c.drawImage(logo_path, 40, height - 80, width=60, height=60, mask='auto')
+    except Exception as e:
+        print(f"Erro ao carregar logo: {e}")
 
-    # Dados físicos
-    pdf.drawString(2 * cm, altura - 6 * cm, f"Peso: {avaliacao['peso']} kg")
-    pdf.drawString(8 * cm, altura - 6 * cm, f"Altura: {avaliacao['altura']} cm")
-    pdf.drawString(2 * cm, altura - 6.7 * cm, f"Percentual de Gordura: {avaliacao['percentual_gordura']}%")
-    pdf.drawString(8 * cm, altura - 6.7 * cm, f"Massa Magra: {avaliacao['massa_magra']} kg")
+    # Dados do profissional
+    c.setFont("Helvetica", 10)
+    x_dados = 120
+    y_dados = height - 50
+    c.drawString(x_dados, y_dados, f"Profissional: {avaliacao['nome_profissional']}")
+    y_dados -= 15
+    c.drawString(x_dados, y_dados, f"Telefone: {avaliacao.get('telefone') or 'Não informado'}")
+    y_dados -= 15
+    c.drawString(x_dados, y_dados, f"E-mail: {avaliacao.get('email') or 'Não informado'}")
+    y_dados -= 15
+    if avaliacao.get("cref"):
+        c.drawString(x_dados, y_dados, f"CREF: {avaliacao['cref']}")
+    elif avaliacao.get("crn"):
+        c.drawString(x_dados, y_dados, f"CRN: {avaliacao['crn']}")
 
-    # Dobras cutâneas
-    pdf.setFont("Helvetica-Bold", 12)
-    pdf.drawString(2 * cm, altura - 8 * cm, "Dobras Cutâneas (mm):")
-    pdf.setFont("Helvetica", 11)
+    # Linha horizontal
+    linha_y = y_dados - 10
+    c.setLineWidth(1)
+    c.line(40, linha_y, width - 40, linha_y)
 
-    y = altura - 8.8 * cm
-    for campo, label in {
-        "dobra_triceps": "Tríceps",
-        "dobra_subescapular": "Subescapular",
-        "dobra_biceps": "Bíceps",
-        "dobra_axilar_media": "Axilar Média",
-        "dobra_supra_iliaca": "Supra Ilíaca"
-    }.items():
-        valor = avaliacao.get(campo)
+    # Título
+    c.setFont("Helvetica-Bold", 16)
+    c.drawCentredString(width / 2, linha_y - 30, "Avaliação Física")
+
+    # Dados do aluno
+    y = linha_y - 60
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(60, y, f"Aluno: {avaliacao['nome_aluno']}")
+    y -= 20
+    c.setFont("Helvetica", 11)
+    c.drawString(60, y, f"Data da Avaliação: {avaliacao['data_avaliacao_formatada']}")
+    y -= 20
+    c.drawString(60, y, f"Peso: {avaliacao.get('peso', '---')} kg")
+    y -= 20
+    c.drawString(60, y, f"Altura: {avaliacao.get('altura', '---')} m")
+    y -= 20
+    c.drawString(60, y, f"IMC: {avaliacao.get('imc', '---')}")
+    y -= 20
+    c.drawString(60, y, f"% Gordura Corporal: {avaliacao.get('percentual_gordura', '---')}%")
+    y -= 30
+
+    # Dobras Cutâneas
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(60, y, "Dobras Cutâneas:")
+    y -= 20
+    c.setFont("Helvetica", 11)
+    dobras = [
+        "dobra_triceps", "dobra_subescapular", "dobra_biceps",
+        "dobra_axilar_media", "dobra_supra_iliaca"
+    ]
+    for d in dobras:
+        valor = avaliacao.get(d)
         if valor is not None:
-            pdf.drawString(2 * cm, y, f"{label}: {valor} mm")
-            y -= 0.6 * cm
+            c.drawString(80, y, f"{d.replace('_', ' ').title()}: {valor} mm")
+            y -= 15
 
-    # Gráfico evolução massa magra vs gordura
-    if historico and len(historico) >= 2:
-        datas = [datetime.strptime(a["data_avaliacao"], "%Y-%m-%d").strftime("%d/%m") for a in historico]
-        magra = [a["massa_magra"] for a in historico]
-        gorda = [a["massa_gorda"] for a in historico]
+    y -= 20
 
-        plt.figure(figsize=(6, 3))
-        plt.plot(datas, magra, label="Massa Magra", marker='o')
-        plt.plot(datas, gorda, label="Massa Gorda", marker='o')
-        plt.xlabel("Data")
-        plt.ylabel("Kg")
-        plt.title("Evolução da Composição Corporal")
-        plt.legend()
-        plt.grid(True)
-        plt.tight_layout()
+    # Medidas Corporais
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(60, y, "Medidas Corporais:")
+    y -= 20
+    c.setFont("Helvetica", 11)
+    medidas = [
+        ("Cintura", "cintura"),
+        ("Quadril", "quadril"),
+        ("Peitoral", "peitoral"),
+        ("Abdômen", "abdomen"),
+        ("Coxa Direita", "coxa_d"),
+        ("Coxa Esquerda", "coxa_e"),
+        ("Braço D Contraído", "braco_d_contraido"),
+        ("Braço E Contraído", "braco_e_contraido")
+    ]
+    for nome, chave in medidas:
+        valor = avaliacao.get(chave)
+        if valor is not None:
+            c.drawString(80, y, f"{nome}: {valor} cm")
+            y -= 15
 
-        img_buffer = io.BytesIO()
-        plt.savefig(img_buffer, format="PNG")
-        img_buffer.seek(0)
-        imagem = ImageReader(img_buffer)
-        pdf.drawImage(imagem, 2 * cm, 2 * cm, width=16 * cm, height=7 * cm)
-        plt.close()
-
-    pdf.showPage()
-    pdf.save()
+    c.save()
     buffer.seek(0)
-    return buffer
+
+    if salvar_em_disco:
+        caminho = os.path.join("app", "static", "pdfs", nome_arquivo)
+        os.makedirs(os.path.dirname(caminho), exist_ok=True)
+        with open(caminho, "wb") as f:
+            f.write(buffer.getbuffer())
+        return caminho
+    else:
+        return buffer
