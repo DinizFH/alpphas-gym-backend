@@ -17,7 +17,7 @@ from app.dashboard.dashboard_routes import dashboard_bp
 from app.registrostreino.registrostreino_routes import registrostreino_bp
 from app.exercicios.exercicios_routes import exercicios_bp
 from app.administrador.admin_routes import admin_bp
-from app.administrador.admin_routes import logs_admin_bp
+from app.administrador.admin_routes import admin_bp
 
 def create_app():
     app = Flask(__name__, static_folder='static', static_url_path='/static')
@@ -62,10 +62,7 @@ def create_app():
     # =====================
     # CORS com suporte a credentials
     # =====================
-    CORS(app, supports_credentials=True, resources={r"/*": {"origins": [
-    "http://localhost:5173",  # Frontend local
-    "https://alpphas-gym-frontend.onrender.com"  # Produção (quando necessário)
-    ]}})
+    CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
 
     # =====================
     # Tratamento de erros JWT
