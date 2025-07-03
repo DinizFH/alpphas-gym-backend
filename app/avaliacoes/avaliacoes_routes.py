@@ -1,7 +1,15 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, request, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.extensions.db import get_db
 import json
+from flask_cors import cross_origin
+import os
+from app.extensions.db import get_db
+from app.utils.jwt import extrair_user_info
+from app.utils.pdf_avaliacoes import gerar_pdf_avaliacao
+from app.utils.email import enviar_email_com_anexo
+from app.utils.whatsapp import enviar_whatsapp_com_arquivo
+from app.utils.logs import registrar_log_envio
 
 avaliacoes_bp = Blueprint("avaliacoes", __name__)
 
@@ -12,6 +20,13 @@ def extrair_identidade():
     except Exception as e:
         print(f"[ERRO] Falha ao extrair identidade do token: {e}")
         return None
+    
+# Função utilitária: buscar detalhes da avaliação por ID
+def obter_avaliacao_por_id(id_avaliacao):
+    db = get_db()
+    with db.cursor() as cursor:
+        cursor.execute("SELECT * FROM avaliacoesfisicas WHERE id_avaliacao = %s", (id_avaliacao,))
+        return cursor.fetchone()
 
 def calcular_imc(peso, altura):
     return round(peso / (altura ** 2), 2) if altura else 0
@@ -406,3 +421,133 @@ def evolucao_avaliacoes(id_aluno):
         return jsonify({"message": "Erro interno"}), 500
     finally:
         db.close()
+
+# ======================
+# Exportar PDF da avaliação
+# ======================
+@avaliacoes_bp.route("/<int:id_avaliacao>/exportar", methods=["GET"])
+@jwt_required()
+@cross_origin()
+def exportar_avaliacao(id_avaliacao):
+    identidade = extrair_user_info()
+    if identidade.get("tipo_usuario") not in ["aluno", "personal", "nutricionista"]:
+        return jsonify({"message": "Acesso não autorizado"}), 403
+
+    try:
+        caminho_pdf = gerar_pdf_avaliacao(id_avaliacao)
+        if not caminho_pdf:
+            return jsonify({"message": "Avaliação não encontrada"}), 404
+        return send_file(caminho_pdf, as_attachment=True)
+    except Exception as e:
+        return jsonify({"message": "Erro ao gerar PDF", "erro": str(e)}), 500
+
+# ======================
+# Enviar por E-mail
+# ======================
+@avaliacoes_bp.route("/<int:id_avaliacao>/enviar-email", methods=["POST"])
+@jwt_required()
+@cross_origin()
+def enviar_avaliacao_email(id_avaliacao):
+    identidade = extrair_user_info()
+    if identidade.get("tipo_usuario") not in ["personal", "nutricionista"]:
+        return jsonify({"message": "Apenas profissionais podem enviar avaliações"}), 403
+
+    try:
+        caminho_pdf = gerar_pdf_avaliacao(id_avaliacao)
+        if not caminho_pdf:
+            return jsonify({"message": "Avaliação não encontrada"}), 404
+
+        db = get_db()
+        with db.cursor() as cursor:
+            cursor.execute("SELECT email, nome FROM usuarios WHERE id_usuario = (SELECT id_aluno FROM avaliacoesfisicas WHERE id_avaliacao = %s)", (id_avaliacao,))
+            dados = cursor.fetchone()
+
+        if not dados or not dados.get("email"):
+            return jsonify({"message": "E-mail do aluno não encontrado"}), 404
+
+        assunto = "Avaliação Física - Alpphas GYM"
+        mensagem = "Olá! Segue em anexo sua avaliação física realizada no Alpphas GYM."
+        enviar_email_com_anexo(dados["email"], assunto, mensagem, caminho_pdf)
+
+        registrar_log_envio(identidade["id_usuario"], "avaliacao", f"Avaliação enviada por e-mail para {dados['email']}", id_referencia=id_avaliacao)
+        return jsonify({"message": "Avaliação enviada por e-mail com sucesso"})
+    except Exception as e:
+        return jsonify({"message": "Erro ao enviar e-mail", "erro": str(e)}), 500
+
+# ======================
+# Enviar por WhatsApp
+# ======================
+@avaliacoes_bp.route("/<int:id_avaliacao>/enviar-whatsapp", methods=["POST"])
+@jwt_required()
+@cross_origin()
+def enviar_avaliacao_whatsapp(id_avaliacao):
+    identidade = extrair_user_info()
+    if identidade.get("tipo_usuario") not in ["personal", "nutricionista"]:
+        return jsonify({"message": "Apenas profissionais podem enviar avaliações"}), 403
+
+    try:
+        caminho_pdf = gerar_pdf_avaliacao(id_avaliacao)
+        if not caminho_pdf:
+            return jsonify({"message": "Avaliação não encontrada"}), 404
+
+        db = get_db()
+        with db.cursor() as cursor:
+            cursor.execute("SELECT whatsapp, nome FROM usuarios WHERE id_usuario = (SELECT id_aluno FROM avaliacoesfisicas WHERE id_avaliacao = %s)", (id_avaliacao,))
+            dados = cursor.fetchone()
+
+        numero = dados["whatsapp"] if dados and "whatsapp" in dados else None
+        nome = dados["nome"] if dados and "nome" in dados else "Aluno"
+
+        if not numero:
+            return jsonify({"message": "WhatsApp do aluno não encontrado"}), 403
+
+        mensagem = f"Olá {nome}, segue sua avaliação física realizada no Alpphas GYM."
+        enviar_whatsapp_com_arquivo(numero, mensagem, caminho_pdf)
+
+        registrar_log_envio(identidade["id_usuario"], "avaliacao", f"Avaliação enviada por WhatsApp para {numero}", id_referencia=id_avaliacao)
+        return jsonify({"message": "Avaliação enviada por WhatsApp com sucesso"})
+    except Exception as e:
+        return jsonify({"message": "Erro ao enviar WhatsApp", "erro": str(e)}), 500
+
+# ======================
+# Enviar por E-mail e WhatsApp
+# ======================
+@avaliacoes_bp.route("/<int:id_avaliacao>/enviar-ambos", methods=["POST"])
+@jwt_required()
+@cross_origin()
+def enviar_avaliacao_ambos(id_avaliacao):
+    identidade = extrair_user_info()
+    if identidade.get("tipo_usuario") not in ["personal", "nutricionista"]:
+        return jsonify({"message": "Apenas profissionais podem enviar avaliações"}), 403
+
+    try:
+        caminho_pdf = gerar_pdf_avaliacao(id_avaliacao)
+        if not caminho_pdf:
+            return jsonify({"message": "Avaliação não encontrada"}), 404
+
+        db = get_db()
+        with db.cursor() as cursor:
+            cursor.execute("SELECT nome, email, whatsapp FROM usuarios WHERE id_usuario = (SELECT id_aluno FROM avaliacoesfisicas WHERE id_avaliacao = %s)", (id_avaliacao,))
+            dados = cursor.fetchone()
+
+        email = dados["email"]
+        whatsapp = dados["whatsapp"]
+        nome = dados["nome"]
+
+        if not email and not whatsapp:
+            return jsonify({"message": "Aluno sem e-mail e WhatsApp cadastrados"}), 403
+
+        if email:
+            assunto = "Avaliação Física - Alpphas GYM"
+            mensagem = "Olá! Segue em anexo sua avaliação física realizada no Alpphas GYM."
+            enviar_email_com_anexo(email, assunto, mensagem, caminho_pdf)
+            registrar_log_envio(identidade["id_usuario"], "avaliacao", f"Avaliação enviada por e-mail para {email}", id_referencia=id_avaliacao)
+
+        if whatsapp:
+            mensagem_wpp = f"Olá {nome}, segue sua avaliação física realizada no Alpphas GYM."
+            enviar_whatsapp_com_arquivo(whatsapp, mensagem_wpp, caminho_pdf)
+            registrar_log_envio(identidade["id_usuario"], "avaliacao", f"Avaliação enviada por WhatsApp para {whatsapp}", id_referencia=id_avaliacao)
+
+        return jsonify({"message": "Avaliação enviada com sucesso por e-mail e WhatsApp"})
+    except Exception as e:
+        return jsonify({"message": "Erro ao enviar avaliação", "erro": str(e)}), 500
