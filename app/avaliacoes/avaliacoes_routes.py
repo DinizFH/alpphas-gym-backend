@@ -1,17 +1,19 @@
 from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.extensions.db import get_db
-import json
 from flask_cors import cross_origin
+
 from app.extensions.db import get_db
 from app.utils.jwt import extrair_user_info
 from app.utils.pdf_avaliacoes import gerar_pdf_avaliacao
-from app.utils.email import enviar_email_com_anexo
-from app.utils.whatsapp import enviar_whatsapp
+from app.utils.email import enviar_avaliacao_por_email
+from app.utils.whatsapp import enviar_avaliacao_por_whatsapp
 from app.utils.logs import registrar_log_envio
+from app.utils.detalhar_avaliacao import detalhar_avaliacao_para_uso
+
 from io import BytesIO
-import requests
 import os
+import json
+
 
 avaliacoes_bp = Blueprint("avaliacoes", __name__)
 
@@ -424,124 +426,81 @@ def evolucao_avaliacoes(id_aluno):
     finally:
         db.close()
 
-# =======================
-# Exportar PDF da Avaliação
-# =======================
+#=====================
+# Gerar PDF e Exportar
+#=====================
 @avaliacoes_bp.route("/<int:id_avaliacao>/pdf", methods=["GET"])
 @jwt_required()
 @cross_origin()
 def baixar_pdf_avaliacao(id_avaliacao):
-    from app.utils.detalhar_avaliacao import detalhar_avaliacao_para_uso
     avaliacao = detalhar_avaliacao_para_uso(id_avaliacao)
     if not avaliacao:
         return jsonify({"message": "Avaliação não encontrada"}), 404
 
     try:
-        pdf = gerar_pdf_avaliacao(avaliacao)
-        return send_file(pdf, mimetype="application/pdf", as_attachment=True, download_name="avaliacao_fisica.pdf")
+        pdf_buffer = gerar_pdf_avaliacao(avaliacao)
+        return send_file(
+            pdf_buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name="avaliacao_fisica.pdf"
+        )
     except Exception as e:
-        print(f"[ERRO PDF] {e}")
+        print("[ERRO PDF]", e)
         return jsonify({"message": "Erro ao gerar PDF"}), 500
 
-# =======================
-# Enviar avaliação por WhatsApp
-# =======================
-@avaliacoes_bp.route("/<int:id_avaliacao>/enviar-whatsapp", methods=["POST"])
-@jwt_required()
-@cross_origin()
-def enviar_avaliacao_whatsapp(id_avaliacao):
-    from app.utils.detalhar_avaliacao import detalhar_avaliacao_para_uso
-    avaliacao = detalhar_avaliacao_para_uso(id_avaliacao)
-    if not avaliacao:
-        return jsonify({"message": "Avaliação não encontrada"}), 404
-
-    db = get_db()
-    with db.cursor() as cursor:
-        cursor.execute("SELECT whatsapp, nome FROM usuarios WHERE id_usuario = %s", (avaliacao["id_aluno"],))
-        dados = cursor.fetchone()
-
-    numero = dados["whatsapp"] if dados and "whatsapp" in dados else None
-    nome = dados["nome"] if dados and "nome" in dados else "Aluno"
-
-    if not numero:
-        return jsonify({"message": "WhatsApp do aluno não encontrado"}), 403
-
-    # Gerar e salvar PDF temporário
-    try:
-        nome_arquivo = f"avaliacao_{id_avaliacao}.pdf"
-        gerar_pdf_avaliacao(avaliacao, nome_arquivo=nome_arquivo, salvar_em_disco=True)
-    except Exception as e:
-        print("Erro ao gerar PDF:", e)
-        registrar_log_envio(avaliacao["id_aluno"], "whatsapp", numero, "Erro ao gerar PDF", "falha")
-        return jsonify({"message": "Erro ao gerar PDF"}), 500
-
-    url_base = os.getenv("APP_URL", "http://localhost:5000")
-    url_pdf = f"{url_base}/avaliacoes/{id_avaliacao}/pdf"
-
-    mensagem = (
-        f"Olá {nome}, aqui está o link para a sua avaliação física:\n\n{url_pdf}\n\n"
-        f"Atenciosamente,\nEquipe Alpphas GYM"
-    )
-
-    try:
-        enviar_whatsapp(numero, mensagem)
-        registrar_log_envio(avaliacao["id_aluno"], "whatsapp", numero, mensagem, "sucesso")
-        return jsonify({"message": "Avaliação enviada com sucesso via WhatsApp"}), 200
-    except Exception as e:
-        registrar_log_envio(avaliacao["id_aluno"], "whatsapp", numero, f"Erro WhatsApp: {mensagem}", f"falha: {str(e)}")
-        return jsonify({"message": f"Erro ao enviar WhatsApp: {str(e)}"}), 500
-
-# =======================
-# Enviar avaliação por E-mail
-# =======================
+#=====================
+# Enviar via E-mail
+#=====================
 @avaliacoes_bp.route("/<int:id_avaliacao>/enviar-email", methods=["POST"])
 @jwt_required()
 @cross_origin()
 def enviar_avaliacao_email(id_avaliacao):
-    from app.utils.detalhar_avaliacao import detalhar_avaliacao_para_uso
+    usuario = extrair_user_info()
+
+    if usuario["tipo"] not in ["personal", "nutricionista"]:
+        return jsonify({"message": "Apenas profissionais podem enviar avaliações por e-mail"}), 403
+
     avaliacao = detalhar_avaliacao_para_uso(id_avaliacao)
     if not avaliacao:
         return jsonify({"message": "Avaliação não encontrada"}), 404
 
-    db = get_db()
-    with db.cursor() as cursor:
-        cursor.execute("SELECT email, nome FROM usuarios WHERE id_usuario = %s", (avaliacao["id_aluno"],))
-        dados = cursor.fetchone()
-
-    email = dados["email"] if dados and "email" in dados else None
-    nome = dados["nome"] if dados and "nome" in dados else "Aluno"
-
-    if not email:
-        return jsonify({"message": "E-mail do aluno não encontrado"}), 403
-
     try:
-        nome_arquivo = f"avaliacao_{id_avaliacao}.pdf"
-        caminho_pdf = gerar_pdf_avaliacao(avaliacao, nome_arquivo=nome_arquivo, salvar_em_disco=True)
-
-        assunto = "Sua Avaliação Física - Alpphas GYM"
-        corpo = f"Olá {nome},\n\nSegue em anexo sua avaliação física realizada.\n\nAtenciosamente,\nEquipe Alpphas GYM"
-
-        enviar_email_com_anexo(email, assunto, corpo, caminho_pdf)
-
-        registrar_log_envio(avaliacao["id_aluno"], "email", email, assunto, "sucesso")
-        return jsonify({"message": "Avaliação enviada por e-mail com sucesso."}), 200
+        pdf_buffer = gerar_pdf_avaliacao(avaliacao)
+        resultado = enviar_avaliacao_por_email(avaliacao, pdf_buffer)
+        return jsonify({"message": resultado["message"]}), resultado["status"]
     except Exception as e:
-        print("Erro ao enviar e-mail:", e)
-        registrar_log_envio(avaliacao["id_aluno"], "email", email, "Erro ao enviar email", f"falha: {str(e)}")
-        return jsonify({"message": f"Erro ao enviar e-mail: {str(e)}"}), 500
+        print("[ERRO EMAIL]", e)
+        return jsonify({"message": "Erro ao processar envio por e-mail"}), 500
 
-# =======================
-# Enviar avaliação por ambos
-# =======================
-@avaliacoes_bp.route("/<int:id_avaliacao>/enviar", methods=["POST"])
+
+#====================
+# Enviar via Whatsapp
+#====================
+@avaliacoes_bp.route("/<int:id_avaliacao>/enviar-whatsapp", methods=["POST"])
 @jwt_required()
 @cross_origin()
-def enviar_avaliacao_ambos(id_avaliacao):
-    res_email = enviar_avaliacao_email(id_avaliacao)
-    res_wpp = enviar_avaliacao_whatsapp(id_avaliacao)
+def enviar_avaliacao_whatsapp(id_avaliacao):
+    usuario = extrair_user_info()
 
-    success = res_email.status_code == 200 and res_wpp.status_code == 200
-    if success:
-        return jsonify({"message": "Avaliação enviada por e-mail e WhatsApp."}), 200
-    else:
-        return jsonify({"message": "Erro parcial ao enviar avaliação."}), 207
+    if usuario["tipo"] not in ["personal", "nutricionista"]:
+        return jsonify({"message": "Apenas profissionais podem enviar avaliações por WhatsApp"}), 403
+
+    avaliacao = detalhar_avaliacao_para_uso(id_avaliacao)
+    if not avaliacao:
+        return jsonify({"message": "Avaliação não encontrada"}), 404
+
+    try:
+        # Gerar PDF temporário salvo em disco
+        nome_arquivo = f"avaliacao_{id_avaliacao}.pdf"
+        gerar_pdf_avaliacao(avaliacao, nome_arquivo=nome_arquivo, salvar_em_disco=True)
+
+        url_base = os.getenv("APP_URL", "http://localhost:5000")
+        url_pdf = f"{url_base}/avaliacoes/{id_avaliacao}/pdf"
+
+        resultado = enviar_avaliacao_por_whatsapp(avaliacao, url_pdf)
+        return jsonify({"message": resultado["message"]}), resultado["status"]
+
+    except Exception as e:
+        print("[ERRO WHATSAPP]", e)
+        return jsonify({"message": "Erro ao processar envio via WhatsApp"}), 500

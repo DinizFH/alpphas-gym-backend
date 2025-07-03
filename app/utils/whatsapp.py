@@ -1,52 +1,65 @@
-# app/utils/whatsapp.py
-
 import os
 import requests
-from flask import current_app
+from app.utils.logs import registrar_log_envio
 
-def enviar_whatsapp(numero_destino, mensagem, caminho_arquivo=None):
+def enviar_avaliacao_por_whatsapp(avaliacao, url_pdf):
     """
-    Envia mensagem via WhatsApp usando UltraMsg.
-    - Se caminho_arquivo for fornecido, envia um documento com legenda.
-    - Caso contrário, envia uma mensagem de texto simples (útil para links).
+    Envia o link da avaliação física via WhatsApp para o aluno.
+
+    Parâmetros:
+    - avaliacao: dict retornado por detalhar_avaliacao_para_uso
+    - url_pdf: URL completa do PDF gerado (ex: https://dominio.com/avaliacoes/12/pdf)
     """
+    numero = avaliacao.get("whatsapp_aluno")
+    nome = avaliacao.get("nome_aluno", "Aluno")
+
+    if not numero:
+        return {
+            "success": False,
+            "status": 403,
+            "message": "WhatsApp do aluno não encontrado"
+        }
+
+    mensagem = (
+        f"Olá {nome}, segue o link para a sua avaliação física:\n\n"
+        f"{url_pdf}\n\n"
+        f"Atenciosamente,\nEquipe Alpphas GYM"
+    )
+
+    instancia = os.getenv("ULTRAMSG_INSTANCE")
+    token = os.getenv("ULTRAMSG_TOKEN")
+    payload = {
+        "token": token,
+        "to": numero,
+        "body": mensagem
+    }
+
     try:
-        instancia = current_app.config.get("ULTRAMSG_INSTANCE")
-        token = current_app.config.get("ULTRAMSG_TOKEN")
+        response = requests.post(
+            f"https://api.ultramsg.com/{instancia}/messages/chat",
+            json=payload
+        )
+        response.raise_for_status()
 
-        if not instancia or not token:
-            raise Exception("Configuração UltraMsg ausente")
+        registrar_log_envio(avaliacao["id_aluno"], "whatsapp", numero, mensagem, "sucesso")
 
-        if caminho_arquivo:
-            url = f"https://api.ultramsg.com/{instancia}/messages/document"
-            with open(caminho_arquivo, "rb") as file:
-                response = requests.post(
-                    url,
-                    data={
-                        "token": token,
-                        "to": numero_destino,
-                        "filename": os.path.basename(caminho_arquivo),
-                        "caption": mensagem,
-                    },
-                    files={"document": file},
-                )
-        else:
-            url = f"https://api.ultramsg.com/{instancia}/messages/chat"
-            response = requests.post(
-                url,
-                data={
-                    "token": token,
-                    "to": numero_destino,
-                    "body": mensagem
-                }
-            )
-
-        if response.status_code == 200:
-            return True
-        else:
-            print(f"[ERRO] Falha ao enviar WhatsApp: {response.text}")
-            return False
+        return {
+            "success": True,
+            "status": 200,
+            "message": "Avaliação enviada com sucesso via WhatsApp"
+        }
 
     except Exception as e:
-        print(f"[ERRO] Exceção ao enviar WhatsApp: {e}")
-        return False
+        print("[WhatsApp] Erro ao enviar:", e)
+        registrar_log_envio(
+            avaliacao["id_aluno"],
+            "whatsapp",
+            numero,
+            f"Erro no envio WhatsApp: {mensagem}",
+            f"falha: {str(e)}"
+        )
+        return {
+            "success": False,
+            "status": 500,
+            "message": f"Erro ao enviar via WhatsApp: {str(e)}"
+        }
