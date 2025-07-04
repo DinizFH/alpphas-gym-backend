@@ -439,15 +439,21 @@ def detalhar_avaliacao_para_uso(id_avaliacao):
         # Primeiro, buscamos a avaliação principal e o id do aluno
         cursor.execute("""
             SELECT a.id_aluno,
-                   u1.nome AS nome_aluno,
-                   u2.nome AS nome_profissional,
-                   u2.email, u2.telefone, u2.endereco, u2.cref,
-                   a.data_avaliacao, a.peso, a.altura,
-                   a.dobra_triceps, a.dobra_subescapular, a.dobra_biceps,
-                   a.dobra_axilar_media, a.dobra_supra_iliaca,
-                   a.cintura, a.quadril, a.abdomen, a.torax,
-                   a.braco_d_contraido, a.braco_e_contraido,
-                   a.perna_d, a.perna_e, a.percentual_gordura
+                    u1.nome AS nome_aluno,
+                    u2.nome AS nome_profissional,
+                    u2.email, u2.telefone, u2.endereco, u2.cref,
+                    a.data_avaliacao, a.peso, a.altura,
+                    a.id_avaliacao, a.id_aluno, a.id_profissional,
+                    a.idade, a.imc, a.percentual_gordura,
+                    a.massa_gorda, a.massa_magra,
+                    a.pescoco, a.ombro, a.torax, a.cintura, a.abdomen, a.quadril,
+                    a.braco_direito, a.braco_esquerdo, a.braco_d_contraido, a.braco_e_contraido,
+                    a.antebraco_direito, a.antebraco_esquerdo, a.coxa_direita, a.coxa_esquerda,
+                    a.panturrilha_direita, a.panturrilha_esquerda,
+                    a.dobra_peitoral, a.dobra_triceps, a.dobra_subescapular,
+                    a.dobra_biceps, a.dobra_axilar_media, a.dobra_supra_iliaca,
+                    a.observacoes,
+
             FROM avaliacoesfisicas a
             JOIN usuarios u1 ON a.id_aluno = u1.id_usuario
             JOIN usuarios u2 ON a.id_profissional = u2.id_usuario
