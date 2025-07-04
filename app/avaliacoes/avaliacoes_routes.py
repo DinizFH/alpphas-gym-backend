@@ -444,7 +444,7 @@ def detalhar_avaliacao_para_uso(id_avaliacao):
                    u2.email, u2.telefone, u2.endereco, u2.cref,
                    a.data_avaliacao, a.peso, a.altura, a.percentual_gordura
                    a.dobra_peitoral, a.dobra_triceps, a.dobra_subescapular,
-                   a.dobra_biceps, a.dobra_axilar_media, a.dobra_supra_iliaca
+                   a.dobra_biceps, a.dobra_triceps, a.dobra_axilar_media, a.dobra_supra_iliaca
                    a.ombro, torax, a.cintura, a.abdomen, a.quadril,
                    a.braco_direito, a.braco_esquerdo,
                    a.braco_d_contraido, a.braco_e_contraido,
