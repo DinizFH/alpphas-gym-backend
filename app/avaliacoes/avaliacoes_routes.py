@@ -439,21 +439,18 @@ def detalhar_avaliacao_para_uso(id_avaliacao):
         # Primeiro, buscamos a avaliação principal e o id do aluno
         cursor.execute("""
             SELECT a.id_aluno,
-                    u1.nome AS nome_aluno,
-                    u2.nome AS nome_profissional,
-                    u2.email, u2.telefone, u2.endereco, u2.cref,
-                    a.data_avaliacao, a.peso, a.altura,
-                    a.id_avaliacao, a.id_aluno, a.id_profissional,
-                    a.idade, a.imc, a.percentual_gordura,
-                    a.massa_gorda, a.massa_magra,
-                    a.pescoco, a.ombro, a.torax, a.cintura, a.abdomen, a.quadril,
-                    a.braco_direito, a.braco_esquerdo, a.braco_d_contraido, a.braco_e_contraido,
-                    a.antebraco_direito, a.antebraco_esquerdo, a.coxa_direita, a.coxa_esquerda,
-                    a.panturrilha_direita, a.panturrilha_esquerda,
-                    a.dobra_peitoral, a.dobra_triceps, a.dobra_subescapular,
-                    a.dobra_biceps, a.dobra_axilar_media, a.dobra_supra_iliaca,
-                    a.observacoes,
-
+                   u1.nome AS nome_aluno,
+                   u2.nome AS nome_profissional,
+                   u2.email, u2.telefone, u2.endereco, u2.cref,
+                   a.data_avaliacao, a.peso, a.altura, a.percentual_gordura
+                   a.dobra_peitoral, a.dobra_triceps, a.dobra_subescapular,
+                   a.dobra_biceps, a.dobra_axilar_media, a.dobra_supra_iliaca
+                   a.ombro, torax, a.cintura, a.abdomen, a.quadril,
+                   a.braco_direito, a.braco_esquerdo,
+                   a.braco_d_contraido, a.braco_e_contraido,
+                   a.antebraco_direito, a.antebraco_esquerdo,
+                   a.coxa_direita, a.coxa_esquerda,
+                   a.panturrilha_direita, a.panturrilha_esquerda,
             FROM avaliacoesfisicas a
             JOIN usuarios u1 ON a.id_aluno = u1.id_usuario
             JOIN usuarios u2 ON a.id_profissional = u2.id_usuario
@@ -495,18 +492,6 @@ def detalhar_avaliacao_para_uso(id_avaliacao):
             todas.append(nova)
 
         return todas
-
-
-import os
-from io import BytesIO
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.lib.utils import ImageReader
-from reportlab.lib.colors import Color
-import reportlab.lib.colors as rl_colors
-from reportlab.graphics.shapes import Drawing, String
-from reportlab.graphics.charts.lineplots import LinePlot
-from reportlab.graphics.charts.textlabels import Label
 
 #=================================
 # Gerar PDF
@@ -572,9 +557,21 @@ def gerar_pdf_avaliacao(avaliacoes, nome_arquivo="avaliacao_temp.pdf", salvar_em
     y -= 15
     c.setFont("Helvetica", 10)
     medidas = [
-        ("Cintura", "cintura"), ("Quadril", "quadril"), ("Abdômen", "abdomen"), ("Tórax", "torax"),
-        ("Braço D.", "braco_d_contraido"), ("Braço E.", "braco_e_contraido"),
-        ("Perna D.", "perna_d"), ("Perna E.", "perna_e"),
+        ("Ombro", "ombro"),
+        ("Tórax", "torax"),
+        ("Cintura", "cintura"),
+        ("Abdômen", "abdomen"),
+        ("Quadril", "quadril"),
+        ("Braço Direito", "braco_direito"),
+        ("Braço Esquerdo", "braco_esquerdo"),
+        ("Braço D. Contraído", "braco_d_contraido"),
+        ("Braço E. Contraído", "braco_e_contraido"),
+        ("Antebraço Direito", "antebraco_direito"),
+        ("Antebraço Esquerdo", "antebraco_esquerdo"),
+        ("Coxa Direita", "coxa_direita"),
+        ("Coxa Esquerda", "coxa_esquerda"),
+        ("Panturrilha Direita", "panturrilha_direita"),
+        ("Panturrilha Esquerda", "panturrilha_esquerda"),
     ]
     for label, key in medidas:
         if y < 100:
@@ -589,8 +586,11 @@ def gerar_pdf_avaliacao(avaliacoes, nome_arquivo="avaliacao_temp.pdf", salvar_em
     y -= 15
     c.setFont("Helvetica", 10)
     dobras = [
-        ("Tríceps", "dobra_triceps"), ("Subescapular", "dobra_subescapular"),
-        ("Bíceps", "dobra_biceps"), ("Axilar Média", "dobra_axilar_media"),
+        ("Peitoral", "dobra_peitoral"),
+        ("Tríceps", "dobra_triceps"),
+        ("Subescapular", "dobra_subescapular"),
+        ("Bíceps", "dobra_biceps"),
+        ("Axilar Média", "dobra_axilar_media"),
         ("Supra-ilíaca", "dobra_supra_iliaca"),
     ]
     for label, key in dobras:
