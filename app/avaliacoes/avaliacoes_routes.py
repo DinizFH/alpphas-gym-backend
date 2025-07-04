@@ -781,31 +781,35 @@ def enviar_avaliacao_email(id_avaliacao):
         if not email:
             return jsonify({"message": "E-mail do aluno não encontrado"}), 403
 
-        # Gerar PDF em memória
+        # Gerar PDF da avaliação
         try:
-            pdf_stream = gerar_pdf_avaliacao(avaliacoes)  # retorna BytesIO
+            pdf_stream = gerar_pdf_avaliacao(avaliacoes)
+            pdf_data = pdf_stream.read()  # necessário para garantir que não está no início
+            pdf_stream.seek(0)  # garantir que a leitura esteja no ponto inicial
         except Exception as e:
             print("Erro ao gerar PDF:", e)
             registrar_log_envio(atual["id_aluno"], "email", email, "Erro ao gerar PDF", "falha")
             return jsonify({"message": "Erro ao gerar o PDF da avaliação"}), 500
 
-        # Enviar e-mail com anexo
+        # Preparar e enviar o e-mail
         try:
             msg = Message(
-                subject="Sua Avaliação Física - Alpphas GYM",
-                sender=None,
+                subject="📋 Sua Avaliação Física - Alpphas GYM",
                 recipients=[email],
                 body=(
                     f"Olá {nome},\n\n"
-                    f"Segue em anexo o arquivo da sua avaliação física personalizada com evolução do percentual de gordura.\n\n"
+                    f"Segue em anexo o arquivo da sua avaliação física personalizada com gráfico de evolução.\n\n"
+                    f"Qualquer dúvida, entre em contato com seu profissional.\n\n"
                     f"Atenciosamente,\nEquipe Alpphas GYM"
                 )
             )
+
             msg.attach(
                 filename=f"avaliacao_fisica_{id_avaliacao}.pdf",
                 content_type="application/pdf",
-                data=pdf_stream.getvalue()
+                data=pdf_data
             )
+
             mail.send(msg)
 
             registrar_log_envio(atual["id_aluno"], "email", email, "Envio de avaliação física em PDF", "sucesso")
