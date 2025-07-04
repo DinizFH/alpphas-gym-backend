@@ -12,7 +12,7 @@ from app.utils.detalhar_avaliacao import detalhar_avaliacao_para_uso
 
 from io import BytesIO
 import os
-import json
+import json, requests
 
 
 avaliacoes_bp = Blueprint("avaliacoes", __name__)
@@ -474,33 +474,74 @@ def enviar_avaliacao_email(id_avaliacao):
         return jsonify({"message": "Erro ao processar envio por e-mail"}), 500
 
 
-#====================
-# Enviar via Whatsapp
-#====================
+# ====================
+# Enviar avaliação por WhatsApp (link do PDF)
+# ====================
 @avaliacoes_bp.route("/<int:id_avaliacao>/enviar-whatsapp", methods=["POST"])
 @jwt_required()
 @cross_origin()
 def enviar_avaliacao_whatsapp(id_avaliacao):
-    usuario = extrair_user_info()
-
-    if usuario["tipo"] not in ["personal", "nutricionista"]:
-        return jsonify({"message": "Apenas profissionais podem enviar avaliações por WhatsApp"}), 403
-
-    avaliacao = detalhar_avaliacao_para_uso(id_avaliacao)
-    if not avaliacao:
-        return jsonify({"message": "Avaliação não encontrada"}), 404
-
     try:
-        # Gerar PDF temporário salvo em disco
-        nome_arquivo = f"avaliacao_{id_avaliacao}.pdf"
-        gerar_pdf_avaliacao(avaliacao, nome_arquivo=nome_arquivo, salvar_em_disco=True)
+        usuario = extrair_user_info()
+
+        if usuario.get("tipo") not in ["personal", "nutricionista"]:
+            return jsonify({"message": "Apenas profissionais podem enviar avaliações por WhatsApp"}), 403
+
+        avaliacao = detalhar_avaliacao_para_uso(id_avaliacao)
+        if not avaliacao:
+            return jsonify({"message": "Avaliação não encontrada"}), 404
+
+        db = get_db()
+        with db.cursor() as cursor:
+            cursor.execute("SELECT whatsapp, nome FROM usuarios WHERE id_usuario = %s", (avaliacao["id_aluno"],))
+            dados = cursor.fetchone()
+
+        numero = dados["whatsapp"] if dados and "whatsapp" in dados else None
+        nome = dados["nome"] if dados and "nome" in dados else "Aluno"
+
+        if not numero:
+            return jsonify({"message": "WhatsApp do aluno não encontrado"}), 403
+
+        # Gerar e salvar PDF temporário
+        try:
+            nome_arquivo = f"avaliacao_{id_avaliacao}.pdf"
+            gerar_pdf_avaliacao(avaliacao, nome_arquivo=nome_arquivo, salvar_em_disco=True)
+        except Exception as e:
+            print("Erro ao gerar PDF:", e)
+            registrar_log_envio(avaliacao["id_aluno"], "whatsapp", numero, "Erro ao gerar PDF", "falha")
+            return jsonify({"message": "Erro ao gerar o PDF da avaliação"}), 500
 
         url_base = os.getenv("APP_URL", "http://localhost:5000")
         url_pdf = f"{url_base}/avaliacoes/{id_avaliacao}/pdf"
 
-        resultado = enviar_avaliacao_por_whatsapp(avaliacao, url_pdf)
-        return jsonify({"message": resultado["message"]}), resultado["status"]
+        mensagem = (
+            f"Olá {nome}, segue o link para sua avaliação física realizada:\n\n{url_pdf}\n\n"
+            f"Atenciosamente,\nEquipe Alpphas GYM"
+        )
+
+        instancia = os.getenv("ULTRAMSG_INSTANCE")
+        token = os.getenv("ULTRAMSG_TOKEN")
+        payload = {
+            "token": token,
+            "to": numero,
+            "body": mensagem
+        }
+
+        try:
+            response = requests.post(
+                f"https://api.ultramsg.com/{instancia}/messages/chat",
+                json=payload
+            )
+            response.raise_for_status()
+
+            registrar_log_envio(avaliacao["id_aluno"], "whatsapp", numero, mensagem, "sucesso")
+            return jsonify({"message": "Avaliação enviada com sucesso via WhatsApp"}), 200
+
+        except Exception as e:
+            print("Erro ao enviar WhatsApp:", e)
+            registrar_log_envio(avaliacao["id_aluno"], "whatsapp", numero, f"Erro no envio WhatsApp: {mensagem}", f"falha: {str(e)}")
+            return jsonify({"message": f"Erro ao enviar via WhatsApp: {str(e)}"}), 500
 
     except Exception as e:
-        print("[ERRO WHATSAPP]", e)
-        return jsonify({"message": "Erro ao processar envio via WhatsApp"}), 500
+        print("Erro inesperado no envio:", e)
+        return jsonify({"message": "Erro inesperado ao processar o envio via WhatsApp."}), 500
