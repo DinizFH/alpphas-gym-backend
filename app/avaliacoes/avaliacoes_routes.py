@@ -430,27 +430,26 @@ def evolucao_avaliacoes(id_aluno):
     finally:
         db.close()
 
-#=======================================
-#Função auxiliar (detalhamento para PDF)
-#=======================================
+#============================================
+# Função detalhar_avaliacao_para_uso (completa)
+#============================================
 def detalhar_avaliacao_para_uso(id_avaliacao):
     db = get_db()
     with db.cursor() as cursor:
-        # Primeiro, buscamos a avaliação principal e o id do aluno
         cursor.execute("""
-            SELECT a.id_aluno,
-                   u1.nome AS nome_aluno,
-                   u2.nome AS nome_profissional,
-                   u2.email, u2.telefone, u2.endereco, u2.cref,
-                   a.data_avaliacao, a.peso, a.altura, a.percentual_gordura
-                   a.dobra_peitoral, a.dobra_triceps, a.dobra_subescapular,
-                   a.dobra_biceps, a.dobra_triceps, a.dobra_axilar_media, a.dobra_supra_iliaca
-                   a.ombro, torax, a.cintura, a.abdomen, a.quadril,
-                   a.braco_direito, a.braco_esquerdo,
-                   a.braco_d_contraido, a.braco_e_contraido,
-                   a.antebraco_direito, a.antebraco_esquerdo,
-                   a.coxa_direita, a.coxa_esquerda,
-                   a.panturrilha_direita, a.panturrilha_esquerda,
+            SELECT 
+                a.id_aluno,
+                u1.nome AS nome_aluno,
+                u2.nome AS nome_profissional,
+                u2.email, u2.telefone, u2.endereco, u2.cref,
+                a.data_avaliacao, a.idade, a.peso, a.altura, a.percentual_gordura,
+                a.dobra_peitoral, a.dobra_triceps, a.dobra_subescapular,
+                a.dobra_biceps, a.dobra_axilar_media, a.dobra_supra_iliaca,
+                a.pescoco, a.ombro, a.torax, a.cintura, a.abdomen, a.quadril,
+                a.braco_direito, a.braco_esquerdo, a.braco_d_contraido, a.braco_e_contraido,
+                a.antebraco_direito, a.antebraco_esquerdo,
+                a.coxa_direita, a.coxa_esquerda,
+                a.panturrilha_direita, a.panturrilha_esquerda
             FROM avaliacoesfisicas a
             JOIN usuarios u1 ON a.id_aluno = u1.id_usuario
             JOIN usuarios u2 ON a.id_profissional = u2.id_usuario
@@ -463,17 +462,15 @@ def detalhar_avaliacao_para_uso(id_avaliacao):
 
         id_aluno = avaliacao_principal["id_aluno"]
 
-        # Agora buscamos as 3 últimas avaliações do aluno (inclusive a atual)
         cursor.execute("""
-            SELECT a.data_avaliacao, a.percentual_gordura
-            FROM avaliacoesfisicas a
-            WHERE a.id_aluno = %s
-            ORDER BY a.data_avaliacao ASC
+            SELECT data_avaliacao, percentual_gordura
+            FROM avaliacoesfisicas
+            WHERE id_aluno = %s
+            ORDER BY data_avaliacao ASC
             LIMIT 3
         """, (id_aluno,))
         historico = cursor.fetchall()
 
-        # Garantimos que a avaliação principal esteja no fim da lista (mais recente)
         todas = []
         for h in historico:
             nova = {
@@ -486,7 +483,6 @@ def detalhar_avaliacao_para_uso(id_avaliacao):
                 "data_avaliacao": h["data_avaliacao"],
                 "percentual_gordura": h["percentual_gordura"]
             }
-            # Só adiciona os dados completos na avaliação que é a principal
             if h["data_avaliacao"] == avaliacao_principal["data_avaliacao"]:
                 nova.update(avaliacao_principal)
             todas.append(nova)
@@ -501,9 +497,9 @@ def gerar_pdf_avaliacao(avaliacoes, nome_arquivo="avaliacao_temp.pdf", salvar_em
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
-    atual = avaliacoes[-1]  # última avaliação (a ser detalhada no PDF)
+    atual = avaliacoes[-1]  # Última avaliação
 
-    # Marca d'água
+    # Marca d'água (logo central transparente)
     try:
         logo_path = "app/static/img/alpphas_logo.png"
         watermark = ImageReader(logo_path)
@@ -515,13 +511,13 @@ def gerar_pdf_avaliacao(avaliacoes, nome_arquivo="avaliacao_temp.pdf", salvar_em
     except:
         pass
 
-    # Logo canto superior
+    # Logo no canto superior
     try:
         c.drawImage(logo_path, 40, height - 80, width=60, height=60, mask='auto')
     except:
         pass
 
-    # Cabeçalho
+    # Cabeçalho do profissional
     c.setFont("Helvetica", 10)
     x_dados = 120
     y_dados = height - 50
@@ -609,7 +605,7 @@ def gerar_pdf_avaliacao(avaliacoes, nome_arquivo="avaliacao_temp.pdf", salvar_em
 
     drawing = Drawing(500, 250)
 
-    # Dados do gráfico (até 3 pontos)
+    # Gráfico de evolução de % gordura (até 3 avaliações)
     dados = []
     labels = []
     for i, a in enumerate(avaliacoes):
@@ -620,38 +616,39 @@ def gerar_pdf_avaliacao(avaliacoes, nome_arquivo="avaliacao_temp.pdf", salvar_em
         except:
             continue
 
-    lp = LinePlot()
-    lp.x = 50
-    lp.y = 50
-    lp.height = 150
-    lp.width = 400
-    lp.data = [dados]
-    lp.lines[0].strokeColor = rl_colors.blue
-    lp.lineLabelFormat = '%2.1f'
-    lp.strokeColor = rl_colors.black
-    lp.joinedLines = 1
-    lp.xValueAxis.valueMin = 1
-    lp.xValueAxis.valueMax = max(3, len(dados))
-    lp.xValueAxis.valueStep = 1
-    lp.yValueAxis.valueMin = 0
-    lp.yValueAxis.valueMax = max([y for _, y in dados] + [25])
-    lp.yValueAxis.valueStep = 5
+    if dados:
+        lp = LinePlot()
+        lp.x = 50
+        lp.y = 50
+        lp.height = 150
+        lp.width = 400
+        lp.data = [dados]
+        lp.lines[0].strokeColor = rl_colors.HexColor("#0072C6")
+        lp.lineLabelFormat = '%2.1f'
+        lp.strokeColor = rl_colors.black
+        lp.joinedLines = 1
+        lp.xValueAxis.valueMin = 1
+        lp.xValueAxis.valueMax = max(3, len(dados))
+        lp.xValueAxis.valueStep = 1
+        lp.yValueAxis.valueMin = 0
+        lp.yValueAxis.valueMax = max([y for _, y in dados] + [25])
+        lp.yValueAxis.valueStep = 5
 
-    drawing.add(lp)
+        drawing.add(lp)
 
-    # Título do gráfico
-    title = Label()
-    title.setOrigin(250, 220)
-    title.boxAnchor = 'n'
-    title.setText("Evolução do Percentual de Gordura")
-    title.fontSize = 14
-    drawing.add(title)
+        # Título do gráfico
+        title = Label()
+        title.setOrigin(250, 220)
+        title.boxAnchor = 'n'
+        title.setText("Evolução do Percentual de Gordura")
+        title.fontSize = 14
+        drawing.add(title)
 
-    # Legenda com datas
-    for i, label in enumerate(labels):
-        drawing.add(String(50 + i * 130, 40, label, fontSize=9))
+        # Legenda com datas
+        for i, label in enumerate(labels):
+            drawing.add(String(50 + i * 130, 40, label, fontSize=9))
 
-    drawing.drawOn(c, 40, height - 320)
+        drawing.drawOn(c, 40, height - 320)
 
     c.save()
     buffer.seek(0)
