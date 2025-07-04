@@ -7,7 +7,8 @@ from reportlab.graphics.charts.textlabels import Label
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
-from reportlab.lib.colors import Color, colors
+from reportlab.lib.colors import Color
+import reportlab.lib.colors as rl_colors
 from flask_mail import Message
 from app.extensions.mail import mail
 
@@ -490,6 +491,17 @@ def detalhar_avaliacao_para_uso(id_avaliacao):
         return todas
 
 
+import os
+from io import BytesIO
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+from reportlab.lib.colors import Color
+import reportlab.lib.colors as rl_colors
+from reportlab.graphics.shapes import Drawing, String
+from reportlab.graphics.charts.lineplots import LinePlot
+from reportlab.graphics.charts.textlabels import Label
+
 #=================================
 # Gerar PDF
 #=================================
@@ -608,15 +620,15 @@ def gerar_pdf_avaliacao(avaliacoes, nome_arquivo="avaliacao_temp.pdf", salvar_em
     lp.height = 150
     lp.width = 400
     lp.data = [dados]
-    lp.lines[0].strokeColor = colors.blue
+    lp.lines[0].strokeColor = rl_colors.blue
     lp.lineLabelFormat = '%2.1f'
-    lp.strokeColor = colors.black
+    lp.strokeColor = rl_colors.black
     lp.joinedLines = 1
     lp.xValueAxis.valueMin = 1
     lp.xValueAxis.valueMax = max(3, len(dados))
     lp.xValueAxis.valueStep = 1
     lp.yValueAxis.valueMin = 0
-    lp.yValueAxis.valueMax = max([y for _, y in dados] + [25])  # Escala mínima
+    lp.yValueAxis.valueMax = max([y for _, y in dados] + [25])
     lp.yValueAxis.valueStep = 5
 
     drawing.add(lp)
@@ -646,6 +658,7 @@ def gerar_pdf_avaliacao(avaliacoes, nome_arquivo="avaliacao_temp.pdf", salvar_em
         return caminho
     else:
         return buffer
+
     
 #==============================
 #Visualização e Download do PDF
