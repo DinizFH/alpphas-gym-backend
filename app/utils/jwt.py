@@ -17,11 +17,16 @@ def extrair_user_id():
 
 def extrair_user_info():
     identidade = get_jwt_identity()
-    if isinstance(identidade, dict):
-        return identidade
-    elif isinstance(identidade, str):
+    if isinstance(identidade, str):
         try:
-            return json.loads(identidade)
+            identidade = json.loads(identidade)
         except:
             return {}
-    return {}
+    elif not isinstance(identidade, dict):
+        return {}
+
+    # Compatibiliza 'tipo' com 'tipo_usuario'
+    if "tipo" in identidade and "tipo_usuario" not in identidade:
+        identidade["tipo_usuario"] = identidade["tipo"]
+
+    return identidade
