@@ -1,18 +1,21 @@
 from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import cross_origin
+from reportlab.graphics.shapes import Drawing, String
+from reportlab.graphics.charts.lineplots import LinePlot
+from reportlab.graphics.charts.textlabels import Label
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+from reportlab.lib.colors import Color, colors
+from flask_mail import Message
+from app.extensions.mail import mail
 
 from app.extensions.db import get_db
-from app.utils.jwt import extrair_user_info
-from app.utils.pdf_avaliacoes import gerar_pdf_avaliacao
-from app.utils.email import enviar_avaliacao_por_email
-from app.utils.whatsapp import enviar_avaliacao_por_whatsapp
 from app.utils.logs import registrar_log_envio
-from app.utils.detalhar_avaliacao import detalhar_avaliacao_para_uso
 
 from io import BytesIO
-import os
-import json, requests
+import os, json, requests
 
 
 avaliacoes_bp = Blueprint("avaliacoes", __name__)
@@ -426,74 +429,265 @@ def evolucao_avaliacoes(id_aluno):
     finally:
         db.close()
 
-#=====================
-# Gerar PDF e Exportar
-#=====================
+#=======================================
+#Função auxiliar (detalhamento para PDF)
+#=======================================
+def detalhar_avaliacao_para_uso(id_avaliacao):
+    db = get_db()
+    with db.cursor() as cursor:
+        # Primeiro, buscamos a avaliação principal e o id do aluno
+        cursor.execute("""
+            SELECT a.id_aluno,
+                   u1.nome AS nome_aluno,
+                   u2.nome AS nome_profissional,
+                   u2.email, u2.telefone, u2.endereco, u2.cref,
+                   a.data_avaliacao, a.peso, a.altura,
+                   a.dobra_triceps, a.dobra_subescapular, a.dobra_biceps,
+                   a.dobra_axilar_media, a.dobra_supra_iliaca,
+                   a.cintura, a.quadril, a.abdomen, a.torax,
+                   a.braco_d_contraido, a.braco_e_contraido,
+                   a.perna_d, a.perna_e, a.percentual_gordura
+            FROM avaliacoesfisicas a
+            JOIN usuarios u1 ON a.id_aluno = u1.id_usuario
+            JOIN usuarios u2 ON a.id_profissional = u2.id_usuario
+            WHERE a.id_avaliacao = %s
+        """, (id_avaliacao,))
+        avaliacao_principal = cursor.fetchone()
+
+        if not avaliacao_principal:
+            return None
+
+        id_aluno = avaliacao_principal["id_aluno"]
+
+        # Agora buscamos as 3 últimas avaliações do aluno (inclusive a atual)
+        cursor.execute("""
+            SELECT a.data_avaliacao, a.percentual_gordura
+            FROM avaliacoesfisicas a
+            WHERE a.id_aluno = %s
+            ORDER BY a.data_avaliacao ASC
+            LIMIT 3
+        """, (id_aluno,))
+        historico = cursor.fetchall()
+
+        # Garantimos que a avaliação principal esteja no fim da lista (mais recente)
+        todas = []
+        for h in historico:
+            nova = {
+                "nome_aluno": avaliacao_principal["nome_aluno"],
+                "nome_profissional": avaliacao_principal["nome_profissional"],
+                "email": avaliacao_principal["email"],
+                "telefone": avaliacao_principal["telefone"],
+                "endereco": avaliacao_principal["endereco"],
+                "cref": avaliacao_principal["cref"],
+                "data_avaliacao": h["data_avaliacao"],
+                "percentual_gordura": h["percentual_gordura"]
+            }
+            # Só adiciona os dados completos na avaliação que é a principal
+            if h["data_avaliacao"] == avaliacao_principal["data_avaliacao"]:
+                nova.update(avaliacao_principal)
+            todas.append(nova)
+
+        return todas
+
+
+#=================================
+# Gerar PDF
+#=================================
+def gerar_pdf_avaliacao(avaliacoes, nome_arquivo="avaliacao_temp.pdf", salvar_em_disco=False):
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    atual = avaliacoes[-1]  # última avaliação (a ser detalhada no PDF)
+
+    # Marca d'água
+    try:
+        logo_path = "app/static/img/alpphas_logo.png"
+        watermark = ImageReader(logo_path)
+        c.saveState()
+        c.translate(width / 2, height / 2)
+        c.setFillColor(Color(0.7, 0.7, 0.7, alpha=0.08))
+        c.drawImage(watermark, -200, -200, width=400, height=400, mask='auto')
+        c.restoreState()
+    except:
+        pass
+
+    # Logo canto superior
+    try:
+        c.drawImage(logo_path, 40, height - 80, width=60, height=60, mask='auto')
+    except:
+        pass
+
+    # Cabeçalho
+    c.setFont("Helvetica", 10)
+    x_dados = 120
+    y_dados = height - 50
+    c.drawString(x_dados, y_dados, f"Profissional: {atual['nome_profissional']}")
+    y_dados -= 15
+    c.drawString(x_dados, y_dados, f"Telefone: {atual.get('telefone') or 'Não informado'}")
+    y_dados -= 15
+    c.drawString(x_dados, y_dados, f"E-mail: {atual.get('email') or 'Não informado'}")
+    y_dados -= 15
+    c.drawString(x_dados, y_dados, f"CREF: {atual.get('cref') or 'Não informado'}")
+
+    c.setLineWidth(1)
+    linha_y = y_dados - 10
+    c.line(40, linha_y, width - 40, linha_y)
+
+    c.setFont("Helvetica-Bold", 16)
+    c.drawCentredString(width / 2, linha_y - 30, "Avaliação Física")
+
+    # Dados do aluno
+    y = linha_y - 60
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(80, y, f"Aluno: {atual['nome_aluno']}")
+    y -= 20
+    c.setFont("Helvetica", 11)
+    c.drawString(80, y, f"Data: {atual['data_avaliacao'].strftime('%d/%m/%Y')}")
+    y -= 15
+    c.drawString(80, y, f"Peso: {atual['peso']} kg    Altura: {atual['altura']} m")
+    y -= 25
+
+    # Medidas corporais
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(80, y, "Medições corporais:")
+    y -= 15
+    c.setFont("Helvetica", 10)
+    medidas = [
+        ("Cintura", "cintura"), ("Quadril", "quadril"), ("Abdômen", "abdomen"), ("Tórax", "torax"),
+        ("Braço D.", "braco_d_contraido"), ("Braço E.", "braco_e_contraido"),
+        ("Perna D.", "perna_d"), ("Perna E.", "perna_e"),
+    ]
+    for label, key in medidas:
+        if y < 100:
+            c.showPage()
+            y = height - 80
+        c.drawString(100, y, f"- {label}: {atual.get(key, '---')} cm")
+        y -= 13
+
+    y -= 10
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(80, y, "Dobras cutâneas:")
+    y -= 15
+    c.setFont("Helvetica", 10)
+    dobras = [
+        ("Tríceps", "dobra_triceps"), ("Subescapular", "dobra_subescapular"),
+        ("Bíceps", "dobra_biceps"), ("Axilar Média", "dobra_axilar_media"),
+        ("Supra-ilíaca", "dobra_supra_iliaca"),
+    ]
+    for label, key in dobras:
+        if y < 100:
+            c.showPage()
+            y = height - 80
+        c.drawString(100, y, f"- {label}: {atual.get(key, '---')} mm")
+        y -= 13
+
+    y -= 20
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(80, y, f"Percentual de Gordura: {atual.get('percentual_gordura', '---')}%")
+
+    # Página nova para gráfico
+    c.showPage()
+
+    drawing = Drawing(500, 250)
+
+    # Dados do gráfico (até 3 pontos)
+    dados = []
+    labels = []
+    for i, a in enumerate(avaliacoes):
+        try:
+            pg = float(a["percentual_gordura"])
+            dados.append((i + 1, pg))
+            labels.append(a["data_avaliacao"].strftime("%d/%m"))
+        except:
+            continue
+
+    lp = LinePlot()
+    lp.x = 50
+    lp.y = 50
+    lp.height = 150
+    lp.width = 400
+    lp.data = [dados]
+    lp.lines[0].strokeColor = colors.blue
+    lp.lineLabelFormat = '%2.1f'
+    lp.strokeColor = colors.black
+    lp.joinedLines = 1
+    lp.xValueAxis.valueMin = 1
+    lp.xValueAxis.valueMax = max(3, len(dados))
+    lp.xValueAxis.valueStep = 1
+    lp.yValueAxis.valueMin = 0
+    lp.yValueAxis.valueMax = max([y for _, y in dados] + [25])  # Escala mínima
+    lp.yValueAxis.valueStep = 5
+
+    drawing.add(lp)
+
+    # Título do gráfico
+    title = Label()
+    title.setOrigin(250, 220)
+    title.boxAnchor = 'n'
+    title.setText("Evolução do Percentual de Gordura")
+    title.fontSize = 14
+    drawing.add(title)
+
+    # Legenda com datas
+    for i, label in enumerate(labels):
+        drawing.add(String(50 + i * 130, 40, label, fontSize=9))
+
+    drawing.drawOn(c, 40, height - 320)
+
+    c.save()
+    buffer.seek(0)
+
+    if salvar_em_disco:
+        caminho = os.path.join("app", "static", "pdfs", nome_arquivo)
+        os.makedirs(os.path.dirname(caminho), exist_ok=True)
+        with open(caminho, "wb") as f:
+            f.write(buffer.getbuffer())
+        return caminho
+    else:
+        return buffer
+    
+#==============================
+#Visualização e Download do PDF
+#==============================
 @avaliacoes_bp.route("/<int:id_avaliacao>/pdf", methods=["GET"])
 @jwt_required()
 @cross_origin()
 def baixar_pdf_avaliacao(id_avaliacao):
-    avaliacao = detalhar_avaliacao_para_uso(id_avaliacao)
-    if not avaliacao:
+    avaliacoes = detalhar_avaliacao_para_uso(id_avaliacao)
+    if not avaliacoes or len(avaliacoes) == 0:
         return jsonify({"message": "Avaliação não encontrada"}), 404
 
     try:
-        pdf_buffer = gerar_pdf_avaliacao(avaliacao)
+        pdf = gerar_pdf_avaliacao(avaliacoes)
         return send_file(
-            pdf_buffer,
+            pdf,
             mimetype="application/pdf",
             as_attachment=True,
-            download_name="avaliacao_fisica.pdf"
+            download_name=f"avaliacao_fisica_{id_avaliacao}.pdf"
         )
     except Exception as e:
-        print("[ERRO PDF]", e)
-        return jsonify({"message": "Erro ao gerar PDF"}), 500
+        print(f"[ERRO PDF AVALIACAO] {e}")
+        return jsonify({"message": "Erro ao gerar PDF da avaliação física"}), 500
 
-#=====================
-# Enviar via E-mail
-#=====================
-@avaliacoes_bp.route("/<int:id_avaliacao>/enviar-email", methods=["POST"])
-@jwt_required()
-@cross_origin()
-def enviar_avaliacao_email(id_avaliacao):
-    usuario = extrair_user_info()
-
-    if usuario["tipo"] not in ["personal", "nutricionista"]:
-        return jsonify({"message": "Apenas profissionais podem enviar avaliações por e-mail"}), 403
-
-    avaliacao = detalhar_avaliacao_para_uso(id_avaliacao)
-    if not avaliacao:
-        return jsonify({"message": "Avaliação não encontrada"}), 404
-
-    try:
-        pdf_buffer = gerar_pdf_avaliacao(avaliacao)
-        resultado = enviar_avaliacao_por_email(avaliacao, pdf_buffer)
-        return jsonify({"message": resultado["message"]}), resultado["status"]
-    except Exception as e:
-        print("[ERRO EMAIL]", e)
-        return jsonify({"message": "Erro ao processar envio por e-mail"}), 500
-
-
-# ====================
-# Enviar avaliação por WhatsApp (link do PDF)
-# ====================
+    
+#=======================
+#Envio via WhatsApp
+#=======================
 @avaliacoes_bp.route("/<int:id_avaliacao>/enviar-whatsapp", methods=["POST"])
 @jwt_required()
 @cross_origin()
 def enviar_avaliacao_whatsapp(id_avaliacao):
     try:
-        usuario = extrair_user_info()
-
-        if usuario.get("tipo") not in ["personal", "nutricionista"]:
-            return jsonify({"message": "Apenas profissionais podem enviar avaliações por WhatsApp"}), 403
-
-        avaliacao = detalhar_avaliacao_para_uso(id_avaliacao)
-        if not avaliacao:
+        avaliacoes = detalhar_avaliacao_para_uso(id_avaliacao)
+        if not avaliacoes or len(avaliacoes) == 0:
             return jsonify({"message": "Avaliação não encontrada"}), 404
+
+        atual = avaliacoes[-1]  # avaliação mais recente (com dados completos)
 
         db = get_db()
         with db.cursor() as cursor:
-            cursor.execute("SELECT whatsapp, nome FROM usuarios WHERE id_usuario = %s", (avaliacao["id_aluno"],))
+            cursor.execute("SELECT whatsapp, nome FROM usuarios WHERE id_usuario = %s", (atual["id_aluno"],))
             dados = cursor.fetchone()
 
         numero = dados["whatsapp"] if dados and "whatsapp" in dados else None
@@ -502,21 +696,21 @@ def enviar_avaliacao_whatsapp(id_avaliacao):
         if not numero:
             return jsonify({"message": "WhatsApp do aluno não encontrado"}), 403
 
-        # Gerar e salvar PDF temporário
+        # Gerar e salvar PDF
         try:
             nome_arquivo = f"avaliacao_{id_avaliacao}.pdf"
-            gerar_pdf_avaliacao(avaliacao, nome_arquivo=nome_arquivo, salvar_em_disco=True)
+            gerar_pdf_avaliacao(avaliacoes, nome_arquivo=nome_arquivo, salvar_em_disco=True)
         except Exception as e:
             print("Erro ao gerar PDF:", e)
-            registrar_log_envio(avaliacao["id_aluno"], "whatsapp", numero, "Erro ao gerar PDF", "falha")
+            registrar_log_envio(atual["id_aluno"], "whatsapp", numero, "Erro ao gerar PDF", "falha")
             return jsonify({"message": "Erro ao gerar o PDF da avaliação"}), 500
 
         url_base = os.getenv("APP_URL", "http://localhost:5000")
         url_pdf = f"{url_base}/avaliacoes/{id_avaliacao}/pdf"
 
         mensagem = (
-            f"Olá {nome}, segue o link para sua avaliação física realizada:\n\n{url_pdf}\n\n"
-            f"Atenciosamente,\nEquipe Alpphas GYM"
+            f"Olá {nome}, segue o link para sua avaliação física personalizada:\n\n{url_pdf}\n\n"
+            f"Equipe Alpphas GYM"
         )
 
         instancia = os.getenv("ULTRAMSG_INSTANCE")
@@ -534,14 +728,78 @@ def enviar_avaliacao_whatsapp(id_avaliacao):
             )
             response.raise_for_status()
 
-            registrar_log_envio(avaliacao["id_aluno"], "whatsapp", numero, mensagem, "sucesso")
+            registrar_log_envio(atual["id_aluno"], "whatsapp", numero, mensagem, "sucesso")
             return jsonify({"message": "Avaliação enviada com sucesso via WhatsApp"}), 200
 
         except Exception as e:
             print("Erro ao enviar WhatsApp:", e)
-            registrar_log_envio(avaliacao["id_aluno"], "whatsapp", numero, f"Erro no envio WhatsApp: {mensagem}", f"falha: {str(e)}")
+            registrar_log_envio(atual["id_aluno"], "whatsapp", numero, f"Erro no envio WhatsApp: {mensagem}", f"falha: {str(e)}")
             return jsonify({"message": f"Erro ao enviar via WhatsApp: {str(e)}"}), 500
 
     except Exception as e:
         print("Erro inesperado no envio:", e)
         return jsonify({"message": "Erro inesperado ao processar o envio via WhatsApp."}), 500
+
+#=====================
+#Envio via E-mail
+#=====================
+@avaliacoes_bp.route("/<int:id_avaliacao>/enviar", methods=["POST"])
+@jwt_required()
+@cross_origin()
+def enviar_avaliacao_email(id_avaliacao):
+    try:
+        avaliacoes = detalhar_avaliacao_para_uso(id_avaliacao)
+        if not avaliacoes or len(avaliacoes) == 0:
+            return jsonify({"message": "Avaliação não encontrada"}), 404
+
+        atual = avaliacoes[-1]  # avaliação atual com dados completos
+
+        db = get_db()
+        with db.cursor() as cursor:
+            cursor.execute("SELECT email, nome FROM usuarios WHERE id_usuario = %s", (atual["id_aluno"],))
+            dados = cursor.fetchone()
+
+        email = dados["email"] if dados and "email" in dados else None
+        nome = dados["nome"] if dados and "nome" in dados else "Aluno"
+
+        if not email:
+            return jsonify({"message": "E-mail do aluno não encontrado"}), 403
+
+        # Gerar PDF em memória
+        try:
+            pdf_stream = gerar_pdf_avaliacao(avaliacoes)  # retorna BytesIO
+        except Exception as e:
+            print("Erro ao gerar PDF:", e)
+            registrar_log_envio(atual["id_aluno"], "email", email, "Erro ao gerar PDF", "falha")
+            return jsonify({"message": "Erro ao gerar o PDF da avaliação"}), 500
+
+        # Enviar e-mail com anexo
+        try:
+            msg = Message(
+                subject="Sua Avaliação Física - Alpphas GYM",
+                sender=None,
+                recipients=[email],
+                body=(
+                    f"Olá {nome},\n\n"
+                    f"Segue em anexo o arquivo da sua avaliação física personalizada com evolução do percentual de gordura.\n\n"
+                    f"Atenciosamente,\nEquipe Alpphas GYM"
+                )
+            )
+            msg.attach(
+                filename=f"avaliacao_fisica_{id_avaliacao}.pdf",
+                content_type="application/pdf",
+                data=pdf_stream.getvalue()
+            )
+            mail.send(msg)
+
+            registrar_log_envio(atual["id_aluno"], "email", email, "Envio de avaliação física em PDF", "sucesso")
+            return jsonify({"message": "Avaliação enviada com sucesso por e-mail."}), 200
+
+        except Exception as e:
+            print("Erro ao enviar e-mail:", e)
+            registrar_log_envio(atual["id_aluno"], "email", email, "Erro ao enviar avaliação física", f"falha: {str(e)}")
+            return jsonify({"message": f"Erro ao enviar o e-mail: {str(e)}"}), 500
+
+    except Exception as e:
+        print("Erro inesperado no envio:", e)
+        return jsonify({"message": "Erro inesperado ao processar o envio da avaliação."}), 500
