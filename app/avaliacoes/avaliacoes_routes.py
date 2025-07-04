@@ -1,6 +1,10 @@
 from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import cross_origin
+from app.extensions.db import get_db
+from app.utils.logs import registrar_log_envio
+
+from io import BytesIO
 from reportlab.graphics.shapes import Drawing, String
 from reportlab.graphics.charts.lineplots import LinePlot
 from reportlab.graphics.charts.textlabels import Label
@@ -8,14 +12,10 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from reportlab.lib.colors import Color
-import reportlab.lib.colors as rl_colors
 from flask_mail import Message
 from app.extensions.mail import mail
 
-from app.extensions.db import get_db
-from app.utils.logs import registrar_log_envio
-
-from io import BytesIO
+import reportlab.lib.colors as rl_colors
 import os, json, requests
 
 
