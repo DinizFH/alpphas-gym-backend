@@ -282,7 +282,7 @@ def detalhes_treino(id_treino):
         db.close()
 
 #=============================================
-#Obter todos os detalhes dos treinos por aluno
+# Obter todos os detalhes dos treinos por aluno, agrupados por plano
 #=============================================
 @treinos_bp.route("/aluno/<int:id_aluno>/detalhes", methods=["GET"])
 @jwt_required()
@@ -299,15 +299,15 @@ def detalhar_treinos_por_plano(id_aluno):
     db = get_db()
     try:
         with db.cursor() as cursor:
-            # Buscar nome do aluno
-            cursor.execute("SELECT nome, cpf FROM usuarios WHERE id_usuario = %s", (id_aluno,))
+            # Buscar nome e CPF do aluno
+            cursor.execute("SELECT id_usuario, nome, cpf FROM usuarios WHERE id_usuario = %s", (id_aluno,))
             aluno = cursor.fetchone()
             if not aluno:
                 return jsonify({"message": "Aluno não encontrado"}), 404
 
-            # Buscar todos os planos ativos do aluno
+            # Buscar todos os planos de treino ativos do aluno
             cursor.execute("""
-                SELECT id_plano, nome, data_criacao
+                SELECT id_plano, nome AS nome_plano, data_criacao
                 FROM planos_treino
                 WHERE id_aluno = %s
                 ORDER BY data_criacao DESC
@@ -315,6 +315,7 @@ def detalhar_treinos_por_plano(id_aluno):
             planos = cursor.fetchall()
 
             for plano in planos:
+                # Buscar treinos ativos associados ao plano
                 cursor.execute("""
                     SELECT id_treino, nome_treino
                     FROM treinos
@@ -323,6 +324,7 @@ def detalhar_treinos_por_plano(id_aluno):
                 treinos = cursor.fetchall()
 
                 for treino in treinos:
+                    # Buscar exercícios vinculados a cada treino
                     cursor.execute("""
                         SELECT e.nome, e.grupo_muscular, te.series, te.repeticoes, te.observacoes
                         FROM treinoexercicios te
@@ -334,14 +336,20 @@ def detalhar_treinos_por_plano(id_aluno):
                 plano["treinos"] = treinos
 
             return jsonify({
-                "aluno": aluno,
-                "planos_treino": planos
+                "aluno": {
+                    "id": aluno["id_usuario"],
+                    "nome": aluno["nome"],
+                    "cpf": aluno["cpf"]
+                },
+                "planos": planos
             }), 200
+
     except Exception as e:
         print("Erro ao detalhar planos de treino:", e)
         return jsonify({"message": "Erro interno"}), 500
     finally:
         db.close()
+
 
 
 #================================
