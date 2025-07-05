@@ -318,7 +318,7 @@ def gerar_pdf_treino(treino, nome_arquivo="treino_temp.pdf", salvar_em_disco=Fal
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
-    # Marca d'água com logo
+    # Marca d'água com logo no fundo
     try:
         logo_path = "app/static/img/alpphas_logo.png"
         marca = ImageReader(logo_path)
@@ -336,47 +336,51 @@ def gerar_pdf_treino(treino, nome_arquivo="treino_temp.pdf", salvar_em_disco=Fal
     except Exception as e:
         print(f"Erro ao carregar logo: {e}")
 
-    # Dados do personal trainer
+    # Cabeçalho - dados do profissional
     c.setFont("Helvetica", 10)
     x_dados = 120
     y_dados = height - 50
-    c.drawString(x_dados, y_dados, f"Profissional: {treino['nome_profissional']}")
+    c.drawString(x_dados, y_dados, f"Profissional: {treino.get('nome_profissional', 'Não informado')}")
     y_dados -= 15
-    c.drawString(x_dados, y_dados, f"Telefone: {treino.get('telefone') or 'Não informado'}")
+    c.drawString(x_dados, y_dados, f"Telefone: {treino.get('telefone', 'Não informado')}")
     y_dados -= 15
-    c.drawString(x_dados, y_dados, f"E-mail: {treino.get('email') or 'Não informado'}")
+    c.drawString(x_dados, y_dados, f"E-mail: {treino.get('email', 'Não informado')}")
 
     # Linha separadora
     linha_y = y_dados - 10
     c.setLineWidth(1)
     c.line(40, linha_y, width - 40, linha_y)
 
-    # Título
+    # Título do documento
     c.setFont("Helvetica-Bold", 16)
     c.drawCentredString(width / 2, linha_y - 30, "Ficha de Treino")
 
     # Dados do aluno
     y = linha_y - 60
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(80, y, f"Aluno: {treino['nome_aluno']}")
+    c.drawString(80, y, f"Aluno: {treino.get('nome_aluno', 'Não informado')}")
     y -= 20
-    c.drawString(80, y, f"Treino: {treino['nome_treino']}")
+    c.drawString(80, y, f"Treino: {treino.get('nome_treino', 'Sem nome')}")
     y -= 20
 
-    # Exercícios
+    # Lista de exercícios
     c.setFont("Helvetica-Bold", 11)
     c.drawString(80, y, "Exercícios:")
     y -= 15
 
-    for ex in treino["exercicios"]:
+    for ex in treino.get("exercicios", []):
         if y < 100:
             c.showPage()
             y = height - 80
         c.setFont("Helvetica-Bold", 10)
-        c.drawString(90, y, f"{ex['nome']} ({ex['grupo_muscular']})")
+        c.drawString(90, y, f"{ex.get('nome', 'Exercício')} ({ex.get('grupo_muscular', '-')})")
         y -= 13
         c.setFont("Helvetica", 10)
-        c.drawString(100, y, f"- Séries: {ex['series']}  |  Repetições: {ex['repeticoes']}  |  Observações: {ex['observacoes'] or '-'}")
+        c.drawString(
+            100,
+            y,
+            f"- Séries: {ex.get('series', '-')}  |  Repetições: {ex.get('repeticoes', '-')}  |  Observações: {ex.get('observacoes') or '-'}"
+        )
         y -= 20
 
     c.save()
