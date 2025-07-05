@@ -286,12 +286,11 @@ def detalhes_treino(id_treino):
 #=============================================
 @treinos_bp.route("/aluno/<int:id_aluno>/detalhes", methods=["GET"])
 @jwt_required()
-def detalhar_todos_treinos_do_aluno(id_aluno):
+def detalhar_treinos_por_plano(id_aluno):
     identidade = extrair_user_info()
     tipo = identidade.get("tipo_usuario")
     id_logado = identidade.get("id")
 
-    # Verifica se o usuário tem permissão
     if tipo == "aluno" and id_logado != id_aluno:
         return jsonify({"message": "Acesso negado"}), 403
     elif tipo not in ["personal", "aluno"]:
@@ -300,36 +299,46 @@ def detalhar_todos_treinos_do_aluno(id_aluno):
     db = get_db()
     try:
         with db.cursor() as cursor:
-            # Buscar dados do aluno
+            # Buscar nome do aluno
             cursor.execute("SELECT nome, cpf FROM usuarios WHERE id_usuario = %s", (id_aluno,))
             aluno = cursor.fetchone()
             if not aluno:
                 return jsonify({"message": "Aluno não encontrado"}), 404
 
-            # Buscar treinos ativos
+            # Buscar todos os planos ativos do aluno
             cursor.execute("""
-                SELECT id_treino, nome_treino, data_criacao
-                FROM treinos
-                WHERE id_aluno = %s AND ativo = TRUE
+                SELECT id_plano, nome, data_criacao
+                FROM planos_treino
+                WHERE id_aluno = %s
                 ORDER BY data_criacao DESC
             """, (id_aluno,))
-            treinos = cursor.fetchall()
+            planos = cursor.fetchall()
 
-            for treino in treinos:
+            for plano in planos:
                 cursor.execute("""
-                    SELECT e.nome, e.grupo_muscular, te.series, te.repeticoes, te.observacoes
-                    FROM treinoexercicios te
-                    JOIN exercicios e ON te.id_exercicio = e.id_exercicio
-                    WHERE te.id_treino = %s
-                """, (treino["id_treino"],))
-                treino["exercicios"] = cursor.fetchall()
+                    SELECT id_treino, nome_treino
+                    FROM treinos
+                    WHERE id_plano = %s AND ativo = TRUE
+                """, (plano["id_plano"],))
+                treinos = cursor.fetchall()
+
+                for treino in treinos:
+                    cursor.execute("""
+                        SELECT e.nome, e.grupo_muscular, te.series, te.repeticoes, te.observacoes
+                        FROM treinoexercicios te
+                        JOIN exercicios e ON te.id_exercicio = e.id_exercicio
+                        WHERE te.id_treino = %s
+                    """, (treino["id_treino"],))
+                    treino["exercicios"] = cursor.fetchall()
+
+                plano["treinos"] = treinos
 
             return jsonify({
                 "aluno": aluno,
-                "treinos": treinos
+                "planos_treino": planos
             }), 200
     except Exception as e:
-        print("Erro ao detalhar treinos:", e)
+        print("Erro ao detalhar planos de treino:", e)
         return jsonify({"message": "Erro interno"}), 500
     finally:
         db.close()
