@@ -167,6 +167,53 @@ def detalhes_treino(id_treino):
     finally:
         db.close()
 
+#=============================================
+#Obter todos os detalhes dos treinos por aluno
+#=============================================
+@treinos_bp.route("/aluno/<int:id_aluno>/detalhes", methods=["GET"])
+@jwt_required()
+def detalhar_todos_treinos_do_aluno(id_aluno):
+    identidade = extrair_user_info()
+    if identidade.get("tipo_usuario") != "personal":
+        return jsonify({"message": "Apenas personal pode acessar esta rota"}), 403
+
+    db = get_db()
+    try:
+        with db.cursor() as cursor:
+            # Buscar dados do aluno
+            cursor.execute("SELECT nome, cpf FROM usuarios WHERE id_usuario = %s", (id_aluno,))
+            aluno = cursor.fetchone()
+            if not aluno:
+                return jsonify({"message": "Aluno não encontrado"}), 404
+
+            # Buscar treinos ativos
+            cursor.execute("""
+                SELECT id_treino, nome_treino, data_criacao
+                FROM treinos
+                WHERE id_aluno = %s AND ativo = TRUE
+                ORDER BY data_criacao DESC
+            """, (id_aluno,))
+            treinos = cursor.fetchall()
+
+            for treino in treinos:
+                cursor.execute("""
+                    SELECT e.nome, e.grupo_muscular, te.series, te.repeticoes, te.observacoes
+                    FROM treinoexercicios te
+                    JOIN exercicios e ON te.id_exercicio = e.id_exercicio
+                    WHERE te.id_treino = %s
+                """, (treino["id_treino"],))
+                treino["exercicios"] = cursor.fetchall()
+
+            return jsonify({
+                "aluno": aluno,
+                "treinos": treinos
+            }), 200
+    except Exception as e:
+        print("Erro ao detalhar treinos:", e)
+        return jsonify({"message": "Erro interno"}), 500
+    finally:
+        db.close()
+
 
 # =======================
 # Editar treino
