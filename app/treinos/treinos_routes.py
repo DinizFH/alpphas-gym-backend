@@ -128,94 +128,6 @@ def listar_treinos_por_profissional():
 
 
 # =======================
-# Obter detalhes do treino
-# =======================
-@treinos_bp.route("/<int:id_treino>", methods=["GET"])
-@jwt_required()
-def detalhes_treino(id_treino):
-    identidade = extrair_user_info()
-    tipo = identidade.get("tipo_usuario")
-    db = get_db()
-    try:
-        with db.cursor() as cursor:
-            cursor.execute("""
-                SELECT t.id_treino, t.nome_treino, t.id_aluno, u.nome AS nome_aluno, u.cpf AS cpf_aluno
-                FROM treinos t
-                JOIN usuarios u ON u.id_usuario = t.id_aluno
-                WHERE t.id_treino = %s AND t.ativo = TRUE
-            """, (id_treino,))
-            treino = cursor.fetchone()
-            if not treino:
-                return jsonify({"message": "Treino não encontrado"}), 404
-
-            if tipo == "aluno" and treino["id_aluno"] != identidade.get("id"):
-                return jsonify({"message": "Acesso negado"}), 403
-
-            cursor.execute("""
-                SELECT e.id_exercicio, e.nome, e.grupo_muscular, e.video,
-                       te.series, te.repeticoes, te.observacoes
-                FROM treinoexercicios te
-                JOIN exercicios e ON te.id_exercicio = e.id_exercicio
-                WHERE te.id_treino = %s
-            """, (id_treino,))
-            treino["exercicios"] = cursor.fetchall()
-
-            return jsonify(treino), 200
-    except Exception as e:
-        print("Erro ao obter treino:", e)
-        return jsonify({"message": "Erro interno"}), 500
-    finally:
-        db.close()
-
-#=============================================
-#Obter todos os detalhes dos treinos por aluno
-#=============================================
-@treinos_bp.route("/aluno/<int:id_aluno>/detalhes", methods=["GET"])
-@jwt_required()
-def detalhar_todos_treinos_do_aluno(id_aluno):
-    identidade = extrair_user_info()
-    if identidade.get("tipo_usuario") != "personal":
-        return jsonify({"message": "Apenas personal pode acessar esta rota"}), 403
-
-    db = get_db()
-    try:
-        with db.cursor() as cursor:
-            # Buscar dados do aluno
-            cursor.execute("SELECT nome, cpf FROM usuarios WHERE id_usuario = %s", (id_aluno,))
-            aluno = cursor.fetchone()
-            if not aluno:
-                return jsonify({"message": "Aluno não encontrado"}), 404
-
-            # Buscar treinos ativos
-            cursor.execute("""
-                SELECT id_treino, nome_treino, data_criacao
-                FROM treinos
-                WHERE id_aluno = %s AND ativo = TRUE
-                ORDER BY data_criacao DESC
-            """, (id_aluno,))
-            treinos = cursor.fetchall()
-
-            for treino in treinos:
-                cursor.execute("""
-                    SELECT e.nome, e.grupo_muscular, te.series, te.repeticoes, te.observacoes
-                    FROM treinoexercicios te
-                    JOIN exercicios e ON te.id_exercicio = e.id_exercicio
-                    WHERE te.id_treino = %s
-                """, (treino["id_treino"],))
-                treino["exercicios"] = cursor.fetchall()
-
-            return jsonify({
-                "aluno": aluno,
-                "treinos": treinos
-            }), 200
-    except Exception as e:
-        print("Erro ao detalhar treinos:", e)
-        return jsonify({"message": "Erro interno"}), 500
-    finally:
-        db.close()
-
-
-# =======================
 # Editar treino
 # =======================
 @treinos_bp.route("/<int:id_treino>", methods=["PUT"])
@@ -275,9 +187,9 @@ def excluir_treino(id_treino):
         db.close()
 
 
-# =======================
+# ==============================
 # Listar treinos do aluno logado
-# =======================
+# ==============================
 @treinos_bp.route("/aluno", methods=["GET"])
 @jwt_required()
 def listar_treinos_aluno():
@@ -328,6 +240,100 @@ def listar_treinos_de_um_aluno(id_aluno):
         return jsonify({"message": "Erro interno ao listar treinos"}), 500
     finally:
         db.close()
+
+# =======================
+# Obter detalhes do treino
+# =======================
+@treinos_bp.route("/<int:id_treino>", methods=["GET"])
+@jwt_required()
+def detalhes_treino(id_treino):
+    identidade = extrair_user_info()
+    tipo = identidade.get("tipo_usuario")
+    db = get_db()
+    try:
+        with db.cursor() as cursor:
+            cursor.execute("""
+                SELECT t.id_treino, t.nome_treino, t.id_aluno, u.nome AS nome_aluno, u.cpf AS cpf_aluno
+                FROM treinos t
+                JOIN usuarios u ON u.id_usuario = t.id_aluno
+                WHERE t.id_treino = %s AND t.ativo = TRUE
+            """, (id_treino,))
+            treino = cursor.fetchone()
+            if not treino:
+                return jsonify({"message": "Treino não encontrado"}), 404
+
+            if tipo == "aluno" and treino["id_aluno"] != identidade.get("id"):
+                return jsonify({"message": "Acesso negado"}), 403
+
+            cursor.execute("""
+                SELECT e.id_exercicio, e.nome, e.grupo_muscular, e.video,
+                       te.series, te.repeticoes, te.observacoes
+                FROM treinoexercicios te
+                JOIN exercicios e ON te.id_exercicio = e.id_exercicio
+                WHERE te.id_treino = %s
+            """, (id_treino,))
+            treino["exercicios"] = cursor.fetchall()
+
+            return jsonify(treino), 200
+    except Exception as e:
+        print("Erro ao obter treino:", e)
+        return jsonify({"message": "Erro interno"}), 500
+    finally:
+        db.close()
+
+#=============================================
+#Obter todos os detalhes dos treinos por aluno
+#=============================================
+@treinos_bp.route("/aluno/<int:id_aluno>/detalhes", methods=["GET"])
+@jwt_required()
+def detalhar_todos_treinos_do_aluno(id_aluno):
+    identidade = extrair_user_info()
+    tipo = identidade.get("tipo_usuario")
+    id_logado = identidade.get("id")
+
+    # Verifica se o usuário tem permissão
+    if tipo == "aluno" and id_logado != id_aluno:
+        return jsonify({"message": "Acesso negado"}), 403
+    elif tipo not in ["personal", "aluno"]:
+        return jsonify({"message": "Apenas personal ou o próprio aluno podem acessar"}), 403
+
+    db = get_db()
+    try:
+        with db.cursor() as cursor:
+            # Buscar dados do aluno
+            cursor.execute("SELECT nome, cpf FROM usuarios WHERE id_usuario = %s", (id_aluno,))
+            aluno = cursor.fetchone()
+            if not aluno:
+                return jsonify({"message": "Aluno não encontrado"}), 404
+
+            # Buscar treinos ativos
+            cursor.execute("""
+                SELECT id_treino, nome_treino, data_criacao
+                FROM treinos
+                WHERE id_aluno = %s AND ativo = TRUE
+                ORDER BY data_criacao DESC
+            """, (id_aluno,))
+            treinos = cursor.fetchall()
+
+            for treino in treinos:
+                cursor.execute("""
+                    SELECT e.nome, e.grupo_muscular, te.series, te.repeticoes, te.observacoes
+                    FROM treinoexercicios te
+                    JOIN exercicios e ON te.id_exercicio = e.id_exercicio
+                    WHERE te.id_treino = %s
+                """, (treino["id_treino"],))
+                treino["exercicios"] = cursor.fetchall()
+
+            return jsonify({
+                "aluno": aluno,
+                "treinos": treinos
+            }), 200
+    except Exception as e:
+        print("Erro ao detalhar treinos:", e)
+        return jsonify({"message": "Erro interno"}), 500
+    finally:
+        db.close()
+
 
 #================================
 #Função auxiliar para gerar o PDF
