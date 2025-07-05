@@ -350,6 +350,76 @@ def detalhar_treinos_por_plano(id_aluno):
     finally:
         db.close()
 
+#=======================================
+# Criar plano de treino com múltiplos treinos
+#=======================================
+@treinos_bp.route("/treinos/planos", methods=["POST"])
+@jwt_required()
+def criar_plano_de_treino():
+    identidade = extrair_user_info()
+    id_personal = identidade.get("id")
+    tipo = identidade.get("tipo_usuario")
+
+    if tipo != "personal":
+        return jsonify({"erro": "Apenas personal pode criar planos de treino"}), 403
+
+    data = request.get_json()
+    id_aluno = data.get("id_aluno")
+    treinos = data.get("treinos", [])
+
+    if not id_aluno or not treinos:
+        return jsonify({"erro": "Dados incompletos"}), 400
+
+    db = get_db()
+    try:
+        with db.cursor() as cursor:
+            # Verificar se o aluno existe
+            cursor.execute("SELECT * FROM usuarios WHERE id_usuario = %s AND tipo = 'aluno'", (id_aluno,))
+            if not cursor.fetchone():
+                return jsonify({"erro": "Aluno não encontrado"}), 404
+
+            # Criar novo plano
+            cursor.execute("""
+                INSERT INTO planos_treino (id_aluno)
+                VALUES (%s)
+            """, (id_aluno,))
+            id_plano = cursor.lastrowid
+
+            # Inserir cada treino vinculado ao plano
+            for treino in treinos:
+                nome_treino = treino.get("nome_treino")
+                exercicios = treino.get("exercicios", [])
+
+                if not nome_treino or not exercicios:
+                    return jsonify({"erro": "Cada treino deve ter nome e exercícios"}), 400
+
+                cursor.execute("""
+                    INSERT INTO treinos (id_aluno, id_personal, id_plano, nome_treino)
+                    VALUES (%s, %s, %s, %s)
+                """, (id_aluno, id_personal, id_plano, nome_treino))
+                id_treino = cursor.lastrowid
+
+                for ex in exercicios:
+                    cursor.execute("""
+                        INSERT INTO treinoexercicios (id_treino, id_exercicio, series, repeticoes, observacoes)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (
+                        id_treino,
+                        ex.get("id_exercicio"),
+                        ex.get("series"),
+                        ex.get("repeticoes"),
+                        ex.get("observacoes", "")
+                    ))
+
+            db.commit()
+            return jsonify({"mensagem": "Plano de treino criado com sucesso"}), 201
+
+    except Exception as e:
+        print("Erro ao criar plano de treino:", e)
+        return jsonify({"erro": "Erro interno ao salvar plano"}), 500
+    finally:
+        db.close()
+
 
 
 #================================
