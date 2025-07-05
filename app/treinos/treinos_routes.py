@@ -91,12 +91,12 @@ def listar_treinos_por_profissional():
         return jsonify({"message": "Apenas personal pode acessar"}), 403
 
     nome = request.args.get("nome", "")
-
     db = get_db()
     try:
         with db.cursor() as cursor:
             cursor.execute("""
-                SELECT u.id_usuario, u.nome, u.cpf, t.id_treino, t.nome_treino
+                SELECT u.id_usuario, u.nome, u.cpf,
+                       t.id_treino, t.nome_treino, t.data_criacao
                 FROM usuarios u
                 JOIN treinos t ON u.id_usuario = t.id_aluno
                 WHERE t.id_profissional = %s AND t.ativo = TRUE AND u.nome LIKE %s
@@ -116,7 +116,8 @@ def listar_treinos_por_profissional():
                     }
                 resposta[uid]["treinos"].append({
                     "id_treino": row["id_treino"],
-                    "nome_treino": row["nome_treino"]
+                    "nome_treino": row["nome_treino"],
+                    "data_criacao": row["data_criacao"]
                 })
             return jsonify(list(resposta.values())), 200
     except Exception as e:
