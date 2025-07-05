@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify, send_file
 from flask_cors import cross_origin
 from flask_jwt_extended import jwt_required, get_jwt_identity
-import pymysql
 from app.extensions.db import get_db
 from app.utils.jwt import extrair_user_info
 from app.utils.logs import registrar_log_envio
@@ -257,7 +256,7 @@ def listar_treinos_aluno():
 
 
 # =======================
-# Listar treinos de um aluno (completo) — usado por personal
+# Listar treinos de um aluno por ID (usado por personal)
 # =======================
 @treinos_bp.route("/aluno/<int:id_aluno>", methods=["GET"])
 @jwt_required()
@@ -268,37 +267,17 @@ def listar_treinos_de_um_aluno(id_aluno):
 
     db = get_db()
     try:
-        with db.cursor(pymysql.cursors.DictCursor) as cursor:
-            print(f"🔍 Buscando treinos para aluno: {id_aluno}")
-            # Buscar os treinos com nome do profissional
+        with db.cursor() as cursor:
             cursor.execute("""
-                SELECT t.id_treino, t.nome_treino, t.data_criacao,
-                       u.nome AS nome_profissional
-                FROM treinos t
-                JOIN usuarios u ON t.id_profissional = u.id_usuario
-                WHERE t.id_aluno = %s AND t.ativo = TRUE
-                ORDER BY t.nome_treino
+                SELECT id_treino, nome_treino
+                FROM treinos
+                WHERE id_aluno = %s AND ativo = TRUE
+                ORDER BY nome_treino
             """, (id_aluno,))
-            treinos = cursor.fetchall()
-            print(f"✅ Treinos encontrados: {treinos}")
-
-            # Buscar os exercícios de cada treino
-            for treino in treinos:
-                print(f"🔁 Buscando exercícios do treino ID {treino['id_treino']}")
-                cursor.execute("""
-                    SELECT e.nome, e.grupo_muscular, te.series, te.repeticoes, te.observacoes
-                    FROM treinoexercicios te
-                    JOIN exercicios e ON te.id_exercicio = e.id_exercicio
-                    WHERE te.id_treino = %s
-                """, (treino["id_treino"],))
-                treino["exercicios"] = cursor.fetchall()
-
-        return jsonify(treinos), 200
-
+            return jsonify(cursor.fetchall()), 200
     except Exception as e:
-        print("❌ Erro ao listar treinos do aluno:", e)
+        print("Erro ao listar treinos do aluno:", e)
         return jsonify({"message": "Erro interno ao listar treinos"}), 500
-
     finally:
         db.close()
 
