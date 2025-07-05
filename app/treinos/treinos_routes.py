@@ -269,8 +269,8 @@ def listar_treinos_de_um_aluno(id_aluno):
     db = get_db()
     try:
         with db.cursor(pymysql.cursors.DictCursor) as cursor:
-            print("🔍 Buscando treinos para aluno:", id_aluno)
-
+            print(f"🔍 Buscando treinos para aluno: {id_aluno}")
+            # Buscar os treinos com nome do profissional
             cursor.execute("""
                 SELECT t.id_treino, t.nome_treino, t.data_criacao,
                        u.nome AS nome_profissional
@@ -280,14 +280,15 @@ def listar_treinos_de_um_aluno(id_aluno):
                 ORDER BY t.nome_treino
             """, (id_aluno,))
             treinos = cursor.fetchall()
-            print("✅ Treinos encontrados:", treinos)
+            print(f"✅ Treinos encontrados: {treinos}")
 
+            # Buscar os exercícios de cada treino
             for treino in treinos:
                 print(f"🔁 Buscando exercícios do treino ID {treino['id_treino']}")
                 cursor.execute("""
                     SELECT e.nome, e.grupo_muscular, te.series, te.repeticoes, te.observacoes
                     FROM treinoexercicios te
-                    JOIN exercicios e ON te.id_exercicio = e.id
+                    JOIN exercicios e ON te.id_exercicio = e.id_exercicio
                     WHERE te.id_treino = %s
                 """, (treino["id_treino"],))
                 treino["exercicios"] = cursor.fetchall()
@@ -300,8 +301,6 @@ def listar_treinos_de_um_aluno(id_aluno):
 
     finally:
         db.close()
-
-
 
 #================================
 #Função auxiliar para gerar o PDF
