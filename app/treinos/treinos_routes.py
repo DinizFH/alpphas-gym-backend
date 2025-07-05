@@ -275,7 +275,7 @@ def listar_treinos_de_um_aluno(id_aluno):
                 SELECT t.id_treino, t.nome_treino, t.data_criacao,
                        u.nome AS nome_profissional
                 FROM treinos t
-                JOIN usuarios u ON t.id_profissional = u.id
+                JOIN usuarios u ON t.id_profissional = u.id_usuario
                 WHERE t.id_aluno = %s AND t.ativo = TRUE
                 ORDER BY t.nome_treino
             """, (id_aluno,))
@@ -292,8 +292,6 @@ def listar_treinos_de_um_aluno(id_aluno):
                 """, (treino["id_treino"],))
                 treino["exercicios"] = cursor.fetchall()
 
-            print("📦 Treinos completos com exercícios:", treinos)
-
         return jsonify(treinos), 200
 
     except Exception as e:
@@ -302,6 +300,7 @@ def listar_treinos_de_um_aluno(id_aluno):
 
     finally:
         db.close()
+
 
 
 #================================
