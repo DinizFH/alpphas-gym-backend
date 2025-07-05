@@ -269,7 +269,8 @@ def listar_treinos_de_um_aluno(id_aluno):
     db = get_db()
     try:
         with db.cursor(pymysql.cursors.DictCursor) as cursor:
-            # Buscar os treinos com nome do profissional
+            print("🔍 Buscando treinos para aluno:", id_aluno)
+
             cursor.execute("""
                 SELECT t.id_treino, t.nome_treino, t.data_criacao,
                        u.nome AS nome_profissional
@@ -279,9 +280,10 @@ def listar_treinos_de_um_aluno(id_aluno):
                 ORDER BY t.nome_treino
             """, (id_aluno,))
             treinos = cursor.fetchall()
+            print("✅ Treinos encontrados:", treinos)
 
-            # Buscar os exercícios de cada treino
             for treino in treinos:
+                print(f"🔁 Buscando exercícios do treino ID {treino['id_treino']}")
                 cursor.execute("""
                     SELECT e.nome, e.grupo_muscular, te.series, te.repeticoes, te.observacoes
                     FROM treinoexercicios te
@@ -290,14 +292,17 @@ def listar_treinos_de_um_aluno(id_aluno):
                 """, (treino["id_treino"],))
                 treino["exercicios"] = cursor.fetchall()
 
+            print("📦 Treinos completos com exercícios:", treinos)
+
         return jsonify(treinos), 200
 
     except Exception as e:
-        print("Erro ao listar treinos do aluno:", e)
+        print("❌ Erro ao listar treinos do aluno:", e)
         return jsonify({"message": "Erro interno ao listar treinos"}), 500
 
     finally:
         db.close()
+
 
 #================================
 #Função auxiliar para gerar o PDF
